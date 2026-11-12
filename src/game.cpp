@@ -108,6 +108,9 @@ bool Game::init(const GameOptions& opts) {
         profile_.ammo[2] = 20;
         profile_.bandages = 4;
         profile_.medkits = 2;
+        for (bool& v : profile_.weaponOwned) v = true;
+        for (bool& v : profile_.armorOwned) v = true;
+        for (bool& v : profile_.bagOwned) v = true;
         profile_.extracted = 7;
         profile_.kills = 34;
         profile_.lootValue = 18600;
@@ -261,6 +264,11 @@ void Game::update(float dt) {
     }
 
     if (input_.keyHit(SDL_SCANCODE_ESCAPE)) {
+        if (screen_ == Screen::DEPLOY && loadoutOpen_) {
+            loadoutOpen_ = false;
+            saveGame(true);
+            return;
+        }
         if (screen_ == Screen::HUB) {
             running_ = false;
         } else {
@@ -269,13 +277,13 @@ void Game::update(float dt) {
         return;
     }
 
-    if (screen_ == Screen::DEPLOY && input_.wheel != 0) {
+    if (screen_ == Screen::DEPLOY && !loadoutOpen_ && input_.wheel != 0) {
         int next = std::clamp(deployMap_ + (input_.wheel > 0 ? -1 : 1), 0, 2);
         deployMap_ = next;
     }
     if (screen_ == Screen::STASH && input_.wheel != 0) {
         int rows = (int)profile_.stash.size() / 6 + ((int)profile_.stash.size() % 6 ? 1 : 0);
-        int maxScroll = std::max(0, rows - 5);
+        int maxScroll = std::max(0, rows - 4);
         stashScroll_ = std::clamp(stashScroll_ - input_.wheel, 0, maxScroll);
     }
 }
@@ -313,7 +321,7 @@ void Game::setScreen(Screen s) {
     screen_ = s;
     if (s == Screen::RAID) audio_.setAmbient(2);
     else audio_.setAmbient(1);
-    if (s == Screen::DEPLOY) deployMap_ = std::clamp(deployMap_, 0, 2);
+    if (s == Screen::DEPLOY) { loadoutOpen_ = false; deployMap_ = std::clamp(deployMap_, 0, 2); }
     if (s == Screen::STASH && stashSel_ >= (int)profile_.stash.size()) stashSel_ = -1;
 }
 
@@ -557,9 +565,10 @@ bool Game::screenshotSetup() {
     std::string shot = opts_.shot.empty() ? "hub" : opts_.shot;
     if (shot == "hub") {
         screen_ = Screen::HUB;
-    } else if (shot == "deploy" || shot == "deploy_knife") {
+    } else if (shot == "deploy" || shot == "deploy_knife" || shot == "deploy_loadout") {
         deployMap_ = std::clamp(opts_.map, 0, 2);
         knifeRun_ = shot == "deploy_knife";
+        loadoutOpen_ = shot == "deploy_loadout";
         screen_ = Screen::DEPLOY;
     } else if (shot == "stash") {
         stashSel_ = profile_.stash.empty() ? -1 : 0;

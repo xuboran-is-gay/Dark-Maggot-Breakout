@@ -15,3 +15,8 @@ save.dat
 *.swp
 __pycache__/
 *.pyc
+
+# Distribution packages
+builds/
+build-win/
+build/pkg-*/

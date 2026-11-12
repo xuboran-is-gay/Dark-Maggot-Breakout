@@ -26,6 +26,11 @@ struct Profile {
     int bandages = 2;
     int medkits = 0;
 
+    // Permanent unlocks. Gear is only lost when carried into a raid and dies.
+    bool weaponOwned[WPN_COUNT] = {false, true, false, false, false};
+    bool armorOwned[ARM_COUNT] = {true, false, false, false};
+    bool bagOwned[4] = {true, false, false, false};
+
     std::vector<ItemStack> stash;
     int extracted = 0;
     int kills = 0;
@@ -44,6 +49,9 @@ struct Profile {
     int xpForNext() const { return 700; }
     int backpackCapacity() const { return BACKPACKS[std::clamp(backpack, 0, 3)].capacity; }
     int gearValue() const;   // value of the gear + supplies currently carried
+    bool ownsWeapon(WeaponId w) const { return (int)w >= 0 && (int)w < WPN_COUNT && weaponOwned[(int)w]; }
+    bool ownsArmor(ArmorId a) const { return (int)a >= 0 && (int)a < ARM_COUNT && armorOwned[(int)a]; }
+    bool ownsBackpack(int b) const { return b >= 0 && b < 4 && bagOwned[b]; }
 
     int stashCount() const;
     int stashWeight() const;

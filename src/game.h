@@ -52,6 +52,7 @@ private:
 
     void drawHub();
     void drawDeploy();
+    void drawLoadoutPanel();
     void drawStash();
     void drawMissions();
     void drawShop();
@@ -83,6 +84,7 @@ private:
     bool confirmReset_ = false;
     bool screenshotMode_ = false;
     bool knifeRun_ = false;
+    bool loadoutOpen_ = false;
     bool raidKnife_ = false;
     bool resultKnife_ = false;
 

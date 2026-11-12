@@ -589,7 +589,7 @@ void Raid::drawHUD(UI& ui, Vec2 cam) {
         ui.text("近战", 832, VIEW_H - 107, 13, C_MUTED, ALIGN_RIGHT);
         ui.textShadow("刀", 448, VIEW_H - 88, 48, C_ACCENT, ALIGN_LEFT, 0, 3);
         ui.text("左键挥砍 · 无需弹药", 520, VIEW_H - 78, 14, C_TEXT);
-        ui.text("[1] 绷带 ×" + std::to_string(bandages_) + "   [2] 止痛针 ×" + std::to_string(medkits_),
+        ui.text("吃药 [1] 绷带×" + std::to_string(bandages_) + "  [2] 止痛针×" + std::to_string(medkits_),
                 520, VIEW_H - 56, 11, C_MUTED);
         if (w.id == WPN_NONE) {
             ui.text("跑刀模式  ·  无枪可切", 520, VIEW_H - 42, 11, C_MUTED);
@@ -606,7 +606,7 @@ void Raid::drawHUD(UI& ui, Vec2 cam) {
         float lw = ui.font ? ui.font->measure(48, loaded) : 70.f;
         ui.text(reserve, 448 + lw + 4, VIEW_H - 66, 24, C_MUTED);
         ui.text("[R] 换弹", 600, VIEW_H - 100, 13, C_MUTED);
-        ui.text("[1] 绷带 ×" + std::to_string(bandages_) + "   [2] 止痛针 ×" + std::to_string(medkits_),
+        ui.text("吃药 [1] 绷带×" + std::to_string(bandages_) + "  [2] 止痛针×" + std::to_string(medkits_),
                 600, VIEW_H - 78, 11, C_TEXT);
         if (player_.reloading) {
             float k = 1.f - player_.reloadT / std::max(.01f, w.reload);

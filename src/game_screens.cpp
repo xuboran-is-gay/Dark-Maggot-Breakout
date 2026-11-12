@@ -137,6 +137,10 @@ void Game::drawHub() {
 void Game::drawDeploy() {
     drawBackdrop(time_, MAPS[deployMap_].accent);
     drawTopBar(true, "潜入准备", "选择封锁区 · 检查弹药 · 活着回来");
+    if (loadoutOpen_) {
+        drawLoadoutPanel();
+        return;
+    }
 
     const float cardY = 96.f, cardH = 208.f, cardW = 252.f;
     for (int i = 0; i < 3; ++i) {
@@ -224,8 +228,10 @@ void Game::drawDeploy() {
     ui_.panel(lo, Col(12, 18, 11, 232), C_BORDER, 12);
     ui_.fillF(lo.x, lo.y, 4, lo.h, C_ACCENT);
     ui_.text("本次配装", 882, 112, 22, C_TEXT);
-    ui_.text(knifeRun_ ? "跑刀：装备留在家中" : "死亡将失去全部装备", 1212, 120, 10,
-             knifeRun_ ? C_ACCENT : C_DANGER, ALIGN_RIGHT);
+    if (ui_.button({1044, 108, 168, 28}, "更换配装", true, false, 12)) {
+        loadoutOpen_ = true;
+        audio_.play(SFX_UI_CLICK, .55f, 1.05f);
+    }
 
     const WeaponDef& wp = WEAPONS[profile_.weapon];
     ui_.text(wp.name, 882, 152, 21, C_TEXT);
@@ -299,6 +305,129 @@ void Game::drawDeploy() {
     ui_.text("放弃行动：保装备，丢战利品", 882, 750, 10, C_MUTED);
 }
 
+void Game::drawLoadoutPanel() {
+    ui_.fillF(0, 0, VIEW_W, VIEW_H, Col(3, 6, 4, 242));
+    Rect p{120, 64, 1040, 672};
+    ui_.panel(p, Col(11, 17, 10, 248), C_ACCENT2, 12);
+    ui_.fillF(p.x, p.y, 4, p.h, C_ACCENT);
+    ui_.text("配装终端", 152, 86, 28, C_TEXT);
+    ui_.text("点击已拥有的装备立即更换 · 下方实时预览", 152, 122, 11, C_MUTED);
+    ui_.text("战备值", 964, 90, 11, C_MUTED, ALIGN_RIGHT);
+    ui_.text(formatMoney(profile_.gearValue()), 1128, 84, 24, C_GOLD, ALIGN_RIGHT);
+
+    const float xs[3] = {152.f, 480.f, 808.f};
+    const char* heads[3] = {"主武器", "护甲", "背包"};
+    for (int c = 0; c < 3; ++c) {
+        int ownedCount = 0, total = 0;
+        if (c == 0) { for (int i = 1; i < WPN_COUNT; ++i) { total++; if (profile_.ownsWeapon((WeaponId)i)) ownedCount++; } }
+        if (c == 1) { for (int i = 0; i < ARM_COUNT; ++i) { total++; if (profile_.ownsArmor((ArmorId)i)) ownedCount++; } }
+        if (c == 2) { for (int i = 0; i < 4; ++i) { total++; if (profile_.ownsBackpack(i)) ownedCount++; } }
+        ui_.text(heads[c], xs[c], 154, 16, C_TEXT);
+        ui_.text("已拥有 " + std::to_string(ownedCount) + " / " + std::to_string(total),
+                 xs[c] + 300, 158, 9, C_MUTED, ALIGN_RIGHT);
+    }
+
+    for (int i = 1; i < WPN_COUNT; ++i) {
+        const WeaponDef& w = WEAPONS[i];
+        Rect r{xs[0], 180.f + (i - 1) * 78.f, 300, 68};
+        bool owned = profile_.ownsWeapon((WeaponId)i);
+        bool equipped = profile_.weapon == (WeaponId)i;
+        bool hov = ui_.hovered(r);
+        ui_.chamfer(r, 5, equipped ? Col(30, 44, 24, 245) : (owned ? Col(17, 26, 16, 238) : Col(10, 14, 9, 220)));
+        ui_.chamferOutline(r, 5, equipped ? C_ACCENT : (hov && owned ? C_ACCENT2 : (owned ? C_BORDER : Col(30, 36, 27))),
+                           equipped ? 1.8f : 1.f);
+        ui_.fillF(r.x, r.y + 6, 3, r.h - 12, owned ? withAlpha(w.accent, 220) : Col(48, 54, 42));
+        ui_.text(w.name, r.x + 12, r.y + 8, 16, owned ? C_TEXT : C_MUTED);
+        ui_.text(w.shortName, r.x + 12, r.y + 32, 9, owned ? C_MUTED : Col(78, 86, 70));
+        ui_.text("伤害 " + std::to_string(w.damage) + (w.pellets > 1 ? "×" + std::to_string(w.pellets) : "") +
+                 " · 射速 " + std::to_string((int)w.rpm) + " · 弹匣 " + std::to_string(w.mag),
+                 r.x + 12, r.y + 48, 9, owned ? C_TEXT : Col(82, 88, 72));
+        if (equipped) ui_.text("已装备", r.right() - 12, r.y + 10, 11, C_ACCENT, ALIGN_RIGHT);
+        else if (owned) ui_.text("可更换", r.right() - 12, r.y + 10, 11, C_CYAN, ALIGN_RIGHT);
+        else ui_.text("¥" + formatMoney(w.price), r.right() - 12, r.y + 10, 12, C_GOLD, ALIGN_RIGHT);
+        if (owned && !equipped && input_.released && r.contains(input_.pressPos)) {
+            profile_.weapon = (WeaponId)i;
+            audio_.play(SFX_UI_CLICK, .55f, 1.08f);
+        }
+    }
+    for (int i = 0; i < ARM_COUNT; ++i) {
+        const ArmorDef& a = ARMORS[i];
+        Rect r{xs[1], 180.f + i * 78.f, 300, 68};
+        bool owned = profile_.ownsArmor((ArmorId)i);
+        bool equipped = profile_.armor == (ArmorId)i;
+        bool hov = ui_.hovered(r);
+        ui_.chamfer(r, 5, equipped ? Col(30, 44, 24, 245) : (owned ? Col(17, 26, 16, 238) : Col(10, 14, 9, 220)));
+        ui_.chamferOutline(r, 5, equipped ? C_ACCENT : (hov && owned ? C_ACCENT2 : (owned ? C_BORDER : Col(30, 36, 27))),
+                           equipped ? 1.8f : 1.f);
+        ui_.fillF(r.x, r.y + 6, 3, r.h - 12, owned ? withAlpha(a.accent, 220) : Col(48, 54, 42));
+        ui_.text(a.name, r.x + 12, r.y + 8, 16, owned ? C_TEXT : C_MUTED);
+        if (i == 0) ui_.text("无防护", r.x + 12, r.y + 34, 9, C_MUTED);
+        else ui_.text("护甲 " + std::to_string(a.armor) + " · 减伤 " +
+                      std::to_string((int)std::lround(a.reduction * 100)) + "% · " +
+                      kgText((int)std::lround(a.weight * 1000)), r.x + 12, r.y + 34, 9,
+                      owned ? C_TEXT : Col(82, 88, 72));
+        if (equipped) ui_.text("已装备", r.right() - 12, r.y + 10, 11, C_ACCENT, ALIGN_RIGHT);
+        else if (owned) ui_.text("可更换", r.right() - 12, r.y + 10, 11, C_CYAN, ALIGN_RIGHT);
+        else ui_.text("¥" + formatMoney(a.price), r.right() - 12, r.y + 10, 12, C_GOLD, ALIGN_RIGHT);
+        if (owned && !equipped && input_.released && r.contains(input_.pressPos)) {
+            profile_.armor = (ArmorId)i;
+            audio_.play(SFX_UI_CLICK, .55f, 1.08f);
+        }
+    }
+    for (int i = 0; i < 4; ++i) {
+        const BackpackDef& b = BACKPACKS[i];
+        Rect r{xs[2], 180.f + i * 78.f, 300, 68};
+        bool owned = profile_.ownsBackpack(i);
+        bool equipped = profile_.backpack == i;
+        bool hov = ui_.hovered(r);
+        ui_.chamfer(r, 5, equipped ? Col(30, 44, 24, 245) : (owned ? Col(17, 26, 16, 238) : Col(10, 14, 9, 220)));
+        ui_.chamferOutline(r, 5, equipped ? C_ACCENT : (hov && owned ? C_ACCENT2 : (owned ? C_BORDER : Col(30, 36, 27))),
+                           equipped ? 1.8f : 1.f);
+        ui_.fillF(r.x, r.y + 6, 3, r.h - 12, owned ? withAlpha(b.accent, 220) : Col(48, 54, 42));
+        ui_.text(b.name, r.x + 12, r.y + 8, 16, owned ? C_TEXT : C_MUTED);
+        ui_.text("容量 " + std::to_string(b.capacity) + " kg", r.x + 12, r.y + 34, 9,
+                 owned ? C_TEXT : Col(82, 88, 72));
+        if (equipped) ui_.text("已装备", r.right() - 12, r.y + 10, 11, C_ACCENT, ALIGN_RIGHT);
+        else if (owned) ui_.text("可更换", r.right() - 12, r.y + 10, 11, C_CYAN, ALIGN_RIGHT);
+        else ui_.text("¥" + formatMoney(b.price), r.right() - 12, r.y + 10, 12, C_GOLD, ALIGN_RIGHT);
+        if (owned && !equipped && input_.released && r.contains(input_.pressPos)) {
+            profile_.backpack = i;
+            audio_.play(SFX_UI_CLICK, .55f, 1.08f);
+        }
+    }
+
+    Rect pv{152, 504, 956, 126};
+    ui_.panel(pv, Col(14, 21, 13, 238), C_BORDER, 8);
+    ui_.text("实时预览", 172, 518, 11, C_ACCENT);
+    const WeaponDef& wp = WEAPONS[profile_.weapon];
+    const ArmorDef& ar = ARMORS[profile_.armor];
+    const BackpackDef& bp = BACKPACKS[std::clamp(profile_.backpack, 0, 3)];
+    ui_.text(std::string(wp.name) + "  ·  伤害 " + std::to_string(wp.damage) +
+             (wp.pellets > 1 ? "×" + std::to_string(wp.pellets) : "") +
+             "  ·  射速 " + std::to_string((int)wp.rpm) + "  ·  弹匣 " + std::to_string(wp.mag),
+             172, 544, 12, C_TEXT);
+    ui_.text(std::string(ar.name) + "  ·  护甲 " + std::to_string(ar.armor) + "  ·  减伤 " +
+             std::to_string((int)std::lround(ar.reduction * 100)) + "%",
+             172, 570, 11, C_MUTED);
+    ui_.text(std::string(bp.name) + "  ·  容量 " + std::to_string(bp.capacity) + " kg",
+             172, 594, 11, C_MUTED);
+    ui_.text("备弹 9mm " + std::to_string(profile_.ammo[0]) + "  ·  12G " +
+             std::to_string(profile_.ammo[1]) + "  ·  5.56 " + std::to_string(profile_.ammo[2]),
+             172, 616, 10, C_GOLD);
+    ui_.text("战备值", 1088, 536, 11, C_MUTED, ALIGN_RIGHT);
+    ui_.text(formatMoney(profile_.gearValue()), 1088, 558, 28, C_GOLD, ALIGN_RIGHT);
+
+    if (ui_.button({152, 654, 180, 44}, "返回", true, false, 15)) {
+        loadoutOpen_ = false;
+        saveGame(true);
+    }
+    if (ui_.button({928, 654, 180, 44}, "完成并保存", true, true, 15)) {
+        loadoutOpen_ = false;
+        saveGame(true);
+    }
+    ui_.text("装备死亡会丢失；未拥有装备请去黑市购买。", 360, 670, 11, C_MUTED);
+}
+
 void Game::drawStash() {
     drawBackdrop(time_, C_CYAN);
     drawTopBar(true, "蛆巢仓库", "销赃 · 估价 · 清点你的收藏");
@@ -312,7 +441,35 @@ void Game::drawStash() {
     ui_.text("重量 " + kgText(profile_.stashWeight()), 748, 148, 12, C_MUTED, ALIGN_RIGHT);
     ui_.line({72, 174}, {744, 174}, C_BORDER, 1.f);
 
-    const int cols = 6, visibleRows = 5;
+    // Current loadout is part of the stash view: gear unlocks plus carried supplies.
+    ui_.text("当前配装", 72, 184, 10, C_CYAN);
+    {
+        Rect wc{68, 202, 160, 62}, ac{236, 202, 160, 62}, bc{404, 202, 160, 62}, sc{572, 202, 160, 62};
+        ui_.chamfer(wc, 4, Col(16, 25, 15, 232)); ui_.chamferOutline(wc, 4, Col(44, 58, 38), 1.f);
+        ui_.chamfer(ac, 4, Col(16, 25, 15, 232)); ui_.chamferOutline(ac, 4, Col(44, 58, 38), 1.f);
+        ui_.chamfer(bc, 4, Col(16, 25, 15, 232)); ui_.chamferOutline(bc, 4, Col(44, 58, 38), 1.f);
+        ui_.chamfer(sc, 4, Col(16, 25, 15, 232)); ui_.chamferOutline(sc, 4, Col(44, 58, 38), 1.f);
+        const WeaponDef& wp = WEAPONS[profile_.weapon];
+        const ArmorDef& ar = ARMORS[profile_.armor];
+        const BackpackDef& bp = BACKPACKS[std::clamp(profile_.backpack, 0, 3)];
+        ui_.text(wp.name, wc.x + 8, wc.y + 7, 12, C_TEXT);
+        ui_.text("伤害 " + std::to_string(wp.damage) + " · 弹匣 " + std::to_string(wp.mag), wc.x + 8, wc.y + 28, 9, C_MUTED);
+        ui_.text("备弹 " + std::to_string(profile_.ammo[(int)wp.ammo]), wc.x + 8, wc.y + 44, 9, C_GOLD);
+        ui_.text(ar.name, ac.x + 8, ac.y + 7, 12, C_TEXT);
+        ui_.text("护甲 " + std::to_string(ar.armor) + " · 减伤 " +
+                 std::to_string((int)std::lround(ar.reduction * 100)) + "%", ac.x + 8, ac.y + 28, 9, C_MUTED);
+        ui_.text("重量 " + kgText((int)std::lround(ar.weight * 1000)), ac.x + 8, ac.y + 44, 9, C_MUTED);
+        ui_.text(bp.name, bc.x + 8, bc.y + 7, 12, C_TEXT);
+        ui_.text("容量 " + std::to_string(bp.capacity) + " kg", bc.x + 8, bc.y + 28, 9, C_MUTED);
+        ui_.text("背包已装备", bc.x + 8, bc.y + 44, 9, C_CYAN);
+        ui_.text("补给", sc.x + 8, sc.y + 7, 12, C_TEXT);
+        ui_.text("弹 " + std::to_string(profile_.ammo[0]) + "/" + std::to_string(profile_.ammo[1]) +
+                 "/" + std::to_string(profile_.ammo[2]), sc.x + 8, sc.y + 28, 9, C_GOLD);
+        ui_.text("绷带 " + std::to_string(profile_.bandages) + " · 止痛针 " + std::to_string(profile_.medkits),
+                 sc.x + 8, sc.y + 44, 9, C_MUTED);
+    }
+
+    const int cols = 6, visibleRows = 4;
     int rows = (int)profile_.stash.size() / cols + ((int)profile_.stash.size() % cols ? 1 : 0);
     int maxScroll = std::max(0, rows - visibleRows);
     stashScroll_ = std::clamp(stashScroll_, 0, maxScroll);
@@ -324,7 +481,7 @@ void Game::drawStash() {
         int idx = stashScroll_ * cols + vis;
         if (idx >= (int)profile_.stash.size()) break;
         int row = vis / cols, col = vis % cols;
-        Rect cell{68.f + col * 112.f, 188.f + row * 104.f, 104.f, 96.f};
+        Rect cell{68.f + col * 112.f, 288.f + row * 104.f, 104.f, 96.f};
         const ItemStack& st = profile_.stash[(size_t)idx];
         if (st.id < 0 || st.id >= IT_COUNT) continue;
         const ItemDef& it = ITEMS[st.id];
@@ -499,22 +656,27 @@ void Game::drawShop() {
             const WeaponDef& w = WEAPONS[i];
             int col = (i - 1) % 2, row = (i - 1) / 2;
             Rect r{48.f + col * 388.f, 142.f + row * 164.f, 376.f, 150.f};
-            bool owned = profile_.weapon == (WeaponId)i;
+            bool equipped = profile_.weapon == (WeaponId)i;
+            bool owned = profile_.ownsWeapon((WeaponId)i);
             Col acc = w.accent;
-            ui_.panel(r, Col(13, 19, 12, 232), owned ? C_ACCENT2 : C_BORDER, 8);
+            ui_.panel(r, Col(13, 19, 12, 232), equipped ? C_ACCENT2 : (owned ? C_CYAN : C_BORDER), 8);
             ui_.fillF(r.x, r.y, 4, r.h, acc);
             ui_.text(w.name, r.x + 18, r.y + 13, 20, C_TEXT);
-            ui_.text("¥" + formatMoney(w.price), r.right() - 18, r.y + 18, 18, C_GOLD, ALIGN_RIGHT);
+            if (equipped) ui_.text("已装备", r.right() - 18, r.y + 18, 14, C_ACCENT, ALIGN_RIGHT);
+            else if (owned) ui_.text("已拥有", r.right() - 18, r.y + 18, 14, C_CYAN, ALIGN_RIGHT);
+            else ui_.text("¥" + formatMoney(w.price), r.right() - 18, r.y + 18, 18, C_GOLD, ALIGN_RIGHT);
             ui_.text(w.shortName, r.x + 18, r.y + 42, 10, C_MUTED);
             ui_.wrapped(w.desc, r.x + 18, r.y + 58, 9, C_MUTED, 336, 2);
             ui_.text("伤害 " + std::to_string(w.damage) + (w.pellets > 1 ? "×" + std::to_string(w.pellets) : ""),
                      r.x + 18, r.y + 121, 10, C_TEXT);
             ui_.text("射速 " + std::to_string((int)w.rpm), r.x + 94, r.y + 121, 10, C_TEXT);
             ui_.text("弹匣 " + std::to_string(w.mag), r.x + 172, r.y + 121, 10, C_TEXT);
-            if (owned) {
-                ui_.text("已装备", r.right() - 20, r.y + 102, 11, C_ACCENT, ALIGN_RIGHT);
-            } else if (ui_.button({r.right() - 136, r.y + 92, 118, 40}, "购买", profile_.coins >= w.price, true, 14)) {
-                buyWeapon((WeaponId)i);
+            if (!equipped) {
+                const char* label = owned ? "装备" : "购买";
+                if (ui_.button({r.right() - 136, r.y + 92, 118, 40}, label,
+                               owned || profile_.coins >= w.price, true, 14)) {
+                    buyWeapon((WeaponId)i);
+                }
             }
         }
     } else if (shopTab_ == 1) {
@@ -522,18 +684,24 @@ void Game::drawShop() {
             const ArmorDef& a = ARMORS[i];
             int col = (i - 1) % 2, row = (i - 1) / 2;
             Rect r{48.f + col * 388.f, 142.f + row * 164.f, 376.f, 150.f};
-            bool owned = profile_.armor == (ArmorId)i;
-            ui_.panel(r, Col(13, 19, 12, 232), owned ? C_ACCENT2 : C_BORDER, 8);
+            bool equipped = profile_.armor == (ArmorId)i;
+            bool owned = profile_.ownsArmor((ArmorId)i);
+            ui_.panel(r, Col(13, 19, 12, 232), equipped ? C_ACCENT2 : (owned ? C_CYAN : C_BORDER), 8);
             ui_.fillF(r.x, r.y, 4, r.h, a.accent);
             ui_.text(a.name, r.x + 18, r.y + 13, 20, C_TEXT);
-            ui_.text("¥" + formatMoney(a.price), r.right() - 18, r.y + 18, 18, C_GOLD, ALIGN_RIGHT);
+            if (equipped) ui_.text("已装备", r.right() - 18, r.y + 18, 14, C_ACCENT, ALIGN_RIGHT);
+            else if (owned) ui_.text("已拥有", r.right() - 18, r.y + 18, 14, C_CYAN, ALIGN_RIGHT);
+            else ui_.text("¥" + formatMoney(a.price), r.right() - 18, r.y + 18, 18, C_GOLD, ALIGN_RIGHT);
             ui_.wrapped(a.desc, r.x + 18, r.y + 46, 10, C_MUTED, 330, 2);
             ui_.text("护甲 " + std::to_string(a.armor), r.x + 18, r.y + 121, 11, C_CYAN);
             ui_.text("减伤 " + std::to_string((int)std::lround(a.reduction * 100)) + "%", r.x + 94, r.y + 121, 11, C_CYAN);
             ui_.text(kgText((int)std::lround(a.weight * 1000)), r.x + 174, r.y + 121, 10, C_MUTED);
-            if (owned) ui_.text("已装备", r.right() - 20, r.y + 102, 11, C_ACCENT, ALIGN_RIGHT);
-            else if (ui_.button({r.right() - 136, r.y + 92, 118, 40}, "购买", profile_.coins >= a.price, true, 14)) {
-                buyArmor((ArmorId)i);
+            if (!equipped) {
+                const char* label = owned ? "装备" : "购买";
+                if (ui_.button({r.right() - 136, r.y + 92, 118, 40}, label,
+                               owned || profile_.coins >= a.price, true, 14)) {
+                    buyArmor((ArmorId)i);
+                }
             }
         }
     } else if (shopTab_ == 2) {
@@ -541,16 +709,22 @@ void Game::drawShop() {
             const BackpackDef& b = BACKPACKS[i];
             int col = (i - 1) % 2, row = (i - 1) / 2;
             Rect r{48.f + col * 388.f, 142.f + row * 164.f, 376.f, 150.f};
-            bool owned = profile_.backpack == i;
-            ui_.panel(r, Col(13, 19, 12, 232), owned ? C_ACCENT2 : C_BORDER, 8);
+            bool equipped = profile_.backpack == i;
+            bool owned = profile_.ownsBackpack(i);
+            ui_.panel(r, Col(13, 19, 12, 232), equipped ? C_ACCENT2 : (owned ? C_CYAN : C_BORDER), 8);
             ui_.fillF(r.x, r.y, 4, r.h, b.accent);
             ui_.text(b.name, r.x + 18, r.y + 13, 20, C_TEXT);
-            ui_.text("¥" + formatMoney(b.price), r.right() - 18, r.y + 18, 18, C_GOLD, ALIGN_RIGHT);
+            if (equipped) ui_.text("已装备", r.right() - 18, r.y + 18, 14, C_ACCENT, ALIGN_RIGHT);
+            else if (owned) ui_.text("已拥有", r.right() - 18, r.y + 18, 14, C_CYAN, ALIGN_RIGHT);
+            else ui_.text("¥" + formatMoney(b.price), r.right() - 18, r.y + 18, 18, C_GOLD, ALIGN_RIGHT);
             ui_.wrapped(b.desc, r.x + 18, r.y + 46, 10, C_MUTED, 330, 2);
             ui_.text("容量 " + std::to_string(b.capacity) + " kg", r.x + 18, r.y + 121, 11, C_GOLD);
-            if (owned) ui_.text("已装备", r.right() - 20, r.y + 102, 11, C_ACCENT, ALIGN_RIGHT);
-            else if (ui_.button({r.right() - 136, r.y + 92, 118, 40}, "购买", profile_.coins >= b.price, true, 14)) {
-                buyBackpack(i);
+            if (!equipped) {
+                const char* label = owned ? "装备" : "购买";
+                if (ui_.button({r.right() - 136, r.y + 92, 118, 40}, label,
+                               owned || profile_.coins >= b.price, true, 14)) {
+                    buyBackpack(i);
+                }
             }
         }
     } else {
@@ -785,14 +959,19 @@ void Game::buyWeapon(WeaponId w) {
     if (w <= WPN_NONE || w >= WPN_COUNT) return;
     const WeaponDef& def = WEAPONS[w];
     if (profile_.weapon == w) return;
-    if (profile_.coins < def.price) {
-        notify("金币不足", C_DANGER);
-        return;
+    bool alreadyOwned = profile_.ownsWeapon(w);
+    if (!alreadyOwned) {
+        if (profile_.coins < def.price) {
+            notify("金币不足", C_DANGER);
+            return;
+        }
+        profile_.coins -= def.price;
+        profile_.weaponOwned[(int)w] = true;
     }
-    profile_.coins -= def.price;
     profile_.weapon = w;
     audio_.play(SFX_BUY, .85f, .96f);
-    notify("已装备 " + std::string(def.name), C_ACCENT);
+    notify(alreadyOwned ? "已装备 " + std::string(def.name)
+                        : "已购买并装备 " + std::string(def.name), C_ACCENT);
     saveGame(true);
 }
 
@@ -800,14 +979,19 @@ void Game::buyArmor(ArmorId a) {
     if (a <= ARM_NONE || a >= ARM_COUNT) return;
     const ArmorDef& def = ARMORS[a];
     if (profile_.armor == a) return;
-    if (profile_.coins < def.price) {
-        notify("金币不足", C_DANGER);
-        return;
+    bool alreadyOwned = profile_.ownsArmor(a);
+    if (!alreadyOwned) {
+        if (profile_.coins < def.price) {
+            notify("金币不足", C_DANGER);
+            return;
+        }
+        profile_.coins -= def.price;
+        profile_.armorOwned[(int)a] = true;
     }
-    profile_.coins -= def.price;
     profile_.armor = a;
     audio_.play(SFX_BUY, .85f, .96f);
-    notify("已装备 " + std::string(def.name), C_CYAN);
+    notify(alreadyOwned ? "已装备 " + std::string(def.name)
+                        : "已购买并装备 " + std::string(def.name), C_CYAN);
     saveGame(true);
 }
 
@@ -815,13 +999,18 @@ void Game::buyBackpack(int b) {
     if (b <= 0 || b >= 4) return;
     const BackpackDef& def = BACKPACKS[b];
     if (profile_.backpack == b) return;
-    if (profile_.coins < def.price) {
-        notify("金币不足", C_DANGER);
-        return;
+    bool alreadyOwned = profile_.ownsBackpack(b);
+    if (!alreadyOwned) {
+        if (profile_.coins < def.price) {
+            notify("金币不足", C_DANGER);
+            return;
+        }
+        profile_.coins -= def.price;
+        profile_.bagOwned[b] = true;
     }
-    profile_.coins -= def.price;
     profile_.backpack = b;
     audio_.play(SFX_BUY, .85f, .96f);
-    notify("已装备 " + std::string(def.name), C_GOLD);
+    notify(alreadyOwned ? "已装备 " + std::string(def.name)
+                        : "已购买并装备 " + std::string(def.name), C_GOLD);
     saveGame(true);
 }

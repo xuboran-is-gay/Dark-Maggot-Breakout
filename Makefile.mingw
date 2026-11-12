@@ -1,0 +1,31 @@
+# Cross-compile the Windows x86_64 build from Linux.
+# Override MINGW_BIN / SDL2_MINGW if your toolchain lives elsewhere.
+MINGW_BIN ?= /home/noi/dsh/mingw64/usr/bin
+MINGW_SYSROOT ?= /home/noi/dsh/mingw64/usr/x86_64-w64-mingw32/sys-root/mingw
+SDL2_MINGW ?= /home/noi/dsh/sdl2-mingw/x86_64-w64-mingw32
+
+CXX := $(MINGW_BIN)/x86_64-w64-mingw32-g++
+STRIP := $(MINGW_BIN)/x86_64-w64-mingw32-strip
+CXXFLAGS := -std=c++17 -O2 -Wall -Wextra -Wno-unused-parameter -Isrc -Ithird_party/SDL2 -I$(SDL2_MINGW)/include
+LDFLAGS := -L$(SDL2_MINGW)/lib -lmingw32 -lSDL2main -lSDL2 -static-libgcc -static-libstdc++ -mwindows
+SRC := $(wildcard src/*.cpp)
+TARGET := build-win/maggot.exe
+
+all: $(TARGET)
+	$(STRIP) $(TARGET)
+
+$(TARGET): $(SRC)
+	@mkdir -p build-win
+	$(CXX) $(CXXFLAGS) $(SRC) $(LDFLAGS) -o $@
+
+bundle: all
+	@mkdir -p build-win/assets
+	cp assets/font.bin build-win/assets/
+	cp $(SDL2_MINGW)/bin/SDL2.dll build-win/
+	cp $(MINGW_SYSROOT)/bin/libwinpthread-1.dll build-win/
+	@echo "Windows bundle ready in build-win/"
+
+clean:
+	rm -f $(TARGET) build-win/*.dll
+
+.PHONY: all bundle clean

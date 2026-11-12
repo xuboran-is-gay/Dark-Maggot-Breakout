@@ -31,6 +31,7 @@ shots: $(TARGET)
 	@mkdir -p docs/screens
 	./$(TARGET) --shot hub docs/screens/hub.bmp
 	./$(TARGET) --map 0 --shot deploy docs/screens/deploy.bmp
+	./$(TARGET) --map 0 --shot deploy_loadout docs/screens/deploy_loadout.bmp
 	./$(TARGET) --map 0 --shot deploy_knife docs/screens/deploy_knife.bmp
 	./$(TARGET) --shot stash docs/screens/stash.bmp
 	./$(TARGET) --shot missions docs/screens/missions.bmp

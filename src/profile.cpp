@@ -92,6 +92,9 @@ int Profile::sellJunk() {
 }
 
 void Profile::loseGearOnDeath() {
+    if (weapon != WPN_PISTOL && weapon != WPN_NONE) weaponOwned[(int)weapon] = false;
+    if (armor != ARM_NONE) armorOwned[(int)armor] = false;
+    if (backpack != 0) bagOwned[backpack] = false;
     weapon = WPN_PISTOL;
     armor = ARM_NONE;
     backpack = 0;
@@ -119,12 +122,16 @@ bool Profile::claimMission(int index) {
     missionClaimed[index] = true;
     coins += m.rewardCoins;
     if (m.weapon != WPN_NONE) {
-        if ((int)weapon < (int)m.weapon) weapon = m.weapon;
-        else coins += WEAPONS[m.weapon].price;
+        if ((int)weapon < (int)m.weapon) {
+            weapon = m.weapon;
+            weaponOwned[(int)m.weapon] = true;
+        } else coins += WEAPONS[m.weapon].price;
     }
     if (m.armor != ARM_NONE) {
-        if ((int)armor < (int)m.armor) armor = m.armor;
-        else coins += ARMORS[m.armor].price;
+        if ((int)armor < (int)m.armor) {
+            armor = m.armor;
+            armorOwned[(int)m.armor] = true;
+        } else coins += ARMORS[m.armor].price;
     }
     return true;
 }
@@ -142,7 +149,7 @@ bool Profile::save(const std::string& path) const {
     std::string tmp = path + ".tmp";
     std::ofstream f(tmp, std::ios::trunc);
     if (!f) return false;
-    f << "MAGGOT_SAVE 3\n";
+    f << "MAGGOT_SAVE 4\n";
     f << "coins " << coins << "\n";
     f << "gear " << (int)weapon << " " << (int)armor << " " << backpack << "\n";
     f << "ammo " << ammo[0] << " " << ammo[1] << " " << ammo[2] << "\n";
@@ -153,6 +160,11 @@ bool Profile::save(const std::string& path) const {
     f << "autofire " << (settings.autofire ? 1 : 0) << "\n";
     f << "missions";
     for (int i = 0; i < 5; ++i) f << " " << (missionClaimed[i] ? 1 : 0);
+    f << "\n";
+    f << "owned";
+    for (bool v : weaponOwned) f << " " << (v ? 1 : 0);
+    for (bool v : armorOwned) f << " " << (v ? 1 : 0);
+    for (bool v : bagOwned) f << " " << (v ? 1 : 0);
     f << "\n";
     for (auto& s : stash) if (s.count > 0) f << "item " << s.id << " " << s.count << "\n";
     f.close();
@@ -184,11 +196,28 @@ bool Profile::load(const std::string& path) {
         else if (key == "settings") f >> settings.volume >> settings.muted >> settings.shake >> settings.fullscreen;
         else if (key == "autofire") { int v = 1; f >> v; settings.autofire = v != 0; }
         else if (key == "missions") for (int i = 0; i < 5; ++i) { int v = 0; f >> v; missionClaimed[i] = v != 0; }
+        else if (key == "owned") {
+            for (bool& v : weaponOwned) { int n = 0; f >> n; v = n != 0; }
+            for (bool& v : armorOwned) { int n = 0; f >> n; v = n != 0; }
+            for (bool& v : bagOwned) { int n = 0; f >> n; v = n != 0; }
+        }
         else if (key == "item") { int id, n; f >> id >> n; if (id >= 0 && id < IT_COUNT && n > 0) addItem((ItemId)id, n); }
         else { std::string rest; std::getline(f, rest); }
     }
     coins = std::clamp(coins, 0, 100000000);
     backpack = std::clamp(backpack, 0, 3);
+    if (version < 4) {
+        weaponOwned[weapon] = true;
+        armorOwned[armor] = true;
+        bagOwned[backpack] = true;
+    }
+    // Starters and the currently equipped set must always be usable.
+    weaponOwned[WPN_PISTOL] = true;
+    armorOwned[ARM_NONE] = true;
+    bagOwned[0] = true;
+    if (weapon >= 0 && weapon < WPN_COUNT) weaponOwned[(int)weapon] = true;
+    if (armor >= 0 && armor < ARM_COUNT) armorOwned[(int)armor] = true;
+    bagOwned[backpack] = true;
     for (int i = 0; i < AMMO_COUNT; ++i) ammo[i] = std::clamp(ammo[i], 0, 99999);
     bandages = std::clamp(bandages, 0, 999);
     medkits = std::clamp(medkits, 0, 999);
