@@ -180,6 +180,10 @@ int Game::run() {
                 input_.pressPos = input_.mouse;
                 input_.down = true;
                 input_.pressed = true;
+                // Restore keyboard focus when the player clicks back into the
+                // window.  Pointer input can keep working while keyboard focus
+                // is elsewhere on some compositors.
+                SDL_SetWindowInputFocus(window_);
             } else if (e.type == SDL_MOUSEBUTTONUP && e.button.button == SDL_BUTTON_LEFT) {
                 float lx = (float)e.button.x, ly = (float)e.button.y;
                 SDL_RenderWindowToLogical(renderer_, e.button.x, e.button.y, &lx, &ly);
@@ -228,14 +232,29 @@ int Game::run() {
                 input_.keysDown.erase(e.key.keysym.sym);
                 input_.keysDown.erase(SDL_GetKeyFromScancode(sc));
             } else if (e.type == SDL_WINDOWEVENT && e.window.event == SDL_WINDOWEVENT_FOCUS_LOST) {
-                input_.held.fill(false);
-                input_.keysDown.clear();
+                // Do not wipe held movement keys here.  On Wayland/X11 the
+                // pointer can keep moving/aiming while keyboard focus is
+                // elsewhere; if the player was holding W/A/S/D during a focus
+                // change, a later KEYDOWN may never arrive after refocus.
+                // Keep held state and let KEYUP clear it, so movement resumes
+                // as soon as keyboard focus returns.
                 input_.hit.fill(false);
                 input_.keysHit.clear();
                 input_.down = false;
+                input_.pressed = false;
+                input_.released = false;
             } else if (e.type == SDL_WINDOWEVENT && e.window.event == SDL_WINDOWEVENT_FOCUS_GAINED) {
                 // Some IMEs re-enable themselves when focus returns.
                 SDL_StopTextInput();
+                // Re-sync keys that SDL knows are physically down; this also
+                // clears stale keycodes without requiring a new KEYDOWN.
+                const Uint8* ks = SDL_GetKeyboardState(nullptr);
+                if (ks) {
+                    for (int i = 0; i < SDL_NUM_SCANCODES; ++i) {
+                        if (ks[i]) input_.held[(size_t)i] = true;
+                    }
+                }
+                input_.keysDown.clear();
             }
         }
         input_.state = SDL_GetKeyboardState(nullptr);

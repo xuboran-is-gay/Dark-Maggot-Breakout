@@ -423,6 +423,16 @@ void Raid::updatePlayer(float dt, Input& in, Audio& audio) {
 
     Vec2 old = player_.pos;
     if (ml > .01f) moveCircle(player_.pos, mv * speed * dt, player_.radius);
+    // Safety net: if the player ever ends up inside a solid tile (for example
+    // a prop spawned/edge case), normal collision would reject every axis and
+    // make WASD appear dead.  Pop out to the nearest floor tile.
+    if (circleSolid(player_.pos, player_.radius)) {
+        Vec2 rescue = map_.nearestFloor(player_.pos);
+        if (dist2(rescue, player_.pos) > 4.f) {
+            player_.pos = rescue;
+            toast("被卡住了，挣扎着挪了出来", C_MUTED);
+        }
+    }
     player_.vel = (player_.pos - old) / std::max(dt, .0001f);
     float spd = length(player_.vel);
     player_.walkPhase += spd * dt * .055f;
