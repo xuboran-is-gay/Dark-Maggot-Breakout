@@ -39,6 +39,7 @@ public:
     void debugPrepareShot();
     int debugShots() const { return shots_; }
     bool debugKnifeOut() const { return knifeOut_; }
+    float debugPlayerHp() const { return player_.hp; }
     void debugSetMapOpen(bool open);
     void debugSetPaused(bool paused);
 
@@ -75,6 +76,7 @@ private:
         bool alert = false;
         bool enraged = false;
         float fireCd = 0, thinkCd = 0, pathCd = 0;
+        float aimDelay = 0;   // reaction time before the first shot in a burst
         float lostTimer = 0, idleTimer = 0;
         float hitFlash = 0, deathTime = 0, muzzle = 0;
         float speed = 80, vision = 400, damage = 8, interval = 1, accuracy = .7f, range = 500, radius = 11;

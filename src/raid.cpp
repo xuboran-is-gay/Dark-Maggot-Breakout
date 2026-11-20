@@ -163,6 +163,7 @@ void Raid::spawnEnemies() {
         e.range = d.range;
         e.radius = d.radius;
         e.boss = d.boss;
+        e.aimDelay = (d.boss ? .55f : .75f) + rng_.rangeF(0.f, .45f);
         e.patrol = p;
         e.lastKnown = p;
         e.idleTimer = rng_.rangeF(.5f, 4.f);
@@ -691,7 +692,7 @@ void Raid::damageEnemy(Enemy& e, float dmg, bool crit, Vec2 from, Audio& audio) 
         e.speed *= 1.22f;
         e.interval *= .72f;
         e.damage *= 1.28f;
-        e.accuracy = std::min(.94f, e.accuracy + .1f);
+        e.accuracy = std::min(.94f, e.accuracy + .07f);
         toast("蛆王暴怒 — 它不再留手", C_DANGER);
         audio.play(SFX_BOSS, .9f);
         shake_ = std::max(shake_, 16.f);
@@ -877,7 +878,7 @@ void Raid::updateEnemies(float dt, Audio& audio) {
             } else {
                 e.stuckTimer = 0;
             }
-            if (sees) e.angle = approachAngle(e.angle, angleOf(player_.pos - e.pos), dt * 7.f);
+            if (sees) e.angle = approachAngle(e.angle, angleOf(player_.pos - e.pos), dt * 4.6f);
             else if (length(moved) > .2f) e.angle = approachAngle(e.angle, angleOf(moved), dt * 5.f);
             return dd < 8.f;
         };
@@ -886,7 +887,9 @@ void Raid::updateEnemies(float dt, Audio& audio) {
             bool inRange = sees && d <= e.range;
             if (inRange) {
                 e.path.clear();
-                e.angle = approachAngle(e.angle, angleOf(player_.pos - e.pos), dt * 8.f);
+                e.angle = approachAngle(e.angle, angleOf(player_.pos - e.pos), dt * 3.4f);
+                // Reaction delay: an enemy must "line up" the shot before the first round.
+                e.fireCd = std::max(e.fireCd, e.aimDelay);
                 if (e.fireCd <= 0.f) enemyShoot(e, audio);
             } else {
                 Vec2 target = sees ? player_.pos : e.lastKnown;
@@ -931,7 +934,7 @@ void Raid::updateEnemies(float dt, Audio& audio) {
         }
 
         if (d < e.radius + player_.radius + 5.f && e.meleeCd <= 0.f) {
-            damagePlayer(e.boss ? 30.f : (e.type == EN_BRUTE ? 18.f : 11.f), e.pos, audio);
+            damagePlayer(e.boss ? 20.f : (e.type == EN_BRUTE ? 12.f : 7.f), e.pos, audio);
             e.meleeCd = e.boss ? .95f : 1.25f;
             addParticles(player_.pos, 1, 6, Col(120, 28, 24, 220), 80.f, .5f, 2.5f);
             player_.pos += normalize(player_.pos - e.pos) * 13.f;
@@ -971,7 +974,7 @@ void Raid::enemyShoot(Enemy& e, Audio& audio) {
     Vec2 to = player_.pos - e.pos;
     float d = length(to);
     if (d < .001f) return;
-    float spread = (1.f - e.accuracy) * .18f + .015f + (e.enraged ? .015f : 0.f);
+    float spread = (1.f - e.accuracy) * .26f + .024f + (e.enraged ? .015f : 0.f);
     float a = angleOf(to) + rng_.rangeF(-spread, spread);
     Vec2 dir = fromAngle(a, 1.f);
     Vec2 muzzle = e.pos + dir * (e.radius + 4.f);
@@ -980,17 +983,20 @@ void Raid::enemyShoot(Enemy& e, Audio& audio) {
     if (wallT < 1.f) end = lerp(muzzle, end, wallT);
     float hitT = rayCircle(muzzle, end, player_.pos, player_.radius + 2.f);
     bool hit = hitT >= 0.f && hitT < 1.f;
-    if (hit) {
+    // Angle clamp: an enemy that is already locked on the player must still miss
+    // some shots, otherwise a head-on duel is a guaranteed 100% hit rate.
+    constexpr float kMaxEnemyHit = .82f;
+    if (hit && rng_.chance(kMaxEnemyHit)) {
         end = lerp(muzzle, end, hitT);
         damagePlayer(e.damage * rng_.rangeF(.9f, 1.1f), e.pos, audio);
     }
     addTracer(muzzle, end, e.boss ? Col(255, 198, 92, 210) : Col(244, 128, 96, 180), e.boss ? 2.f : 1.3f);
     addParticles(muzzle, 0, 2, e.boss ? C_GOLD : Col(250, 160, 90, 220), 70.f, .12f, 1.8f);
     e.muzzle = .06f;
-    e.fireCd = e.interval * rng_.rangeF(e.enraged ? .68f : .86f, e.enraged ? .9f : 1.16f);
+    e.fireCd = e.interval * rng_.rangeF(e.enraged ? 1.35f : 1.7f, e.enraged ? 1.75f : 2.35f);
     e.angle = a;
     audio.play(enemySfx(e.type), .55f, rng_.rangeF(.94f, 1.06f));
-    alertEnemies(e.pos, 620.f);
+    alertEnemies(e.pos, 420.f);
 }
 
 void Raid::alertEnemies(Vec2 p, float radius) {
@@ -1375,7 +1381,7 @@ void Raid::debugPrepareShot() {
         const EnemyDef& d = ENEMIES[(int)e.type];
         e.maxHp = e.hp = d.hp; e.armor = d.armor; e.speed = d.speed; e.vision = d.vision;
         e.damage = d.damage; e.interval = d.interval; e.accuracy = d.accuracy; e.range = d.range;
-        e.radius = d.radius; e.boss = d.boss; e.alert = true; e.patrol = e.pos; e.lastKnown = player_.pos;
+        e.radius = d.radius; e.boss = d.boss; e.alert = true; e.aimDelay = 0.f; e.patrol = e.pos; e.lastKnown = player_.pos;
         enemies_.push_back(e);
     }
     updateVisibility(.5f);
