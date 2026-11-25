@@ -7,7 +7,7 @@
 #include "profile.h"
 #include "raid.h"
 
-enum class Screen { HUB, DEPLOY, STASH, MISSIONS, SHOP, SETTINGS, RAID, RESULT };
+enum class Screen { HUB, DEPLOY, LOADOUT, STASH, MISSIONS, SHOP, SETTINGS, RAID, RESULT };
 
 struct GameOptions {
     bool screenshot = false;
@@ -52,7 +52,7 @@ private:
 
     void drawHub();
     void drawDeploy();
-    void drawLoadoutPanel();
+    void drawLoadout();
     void drawStash();
     void drawMissions();
     void drawShop();
@@ -64,6 +64,9 @@ private:
     void buyWeapon(WeaponId w);
     void buyArmor(ArmorId a);
     void buyBackpack(int b);
+    void buyHelmet(ArmorId a);
+    void buyBody(ArmorId a);
+    void buyRig(ArmorId a);
     bool mapUnlocked(int i) const;
 
     SDL_Window* window_ = nullptr;
@@ -84,7 +87,7 @@ private:
     bool confirmReset_ = false;
     bool screenshotMode_ = false;
     bool knifeRun_ = false;
-    bool loadoutOpen_ = false;
+    bool loadoutConfigured_ = false;
     bool raidKnife_ = false;
     bool resultKnife_ = false;
 

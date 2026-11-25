@@ -5,7 +5,8 @@
 
 int Profile::gearValue() const {
     int v = WEAPONS[std::clamp((int)weapon, 0, (int)WPN_COUNT - 1)].price;
-    v += ARMORS[std::clamp((int)armor, 0, (int)ARM_COUNT - 1)].price;
+    for (int i = 0; i < ASL_COUNT; ++i)
+        v += ARMORS[std::clamp((int)armorSlots[i], 0, (int)ARM_COUNT - 1)].price;
     v += BACKPACKS[std::clamp(backpack, 0, 3)].price;
     for (int i = 0; i < AMMO_COUNT; ++i) {
         int box = ammoBox((AmmoId)i);
@@ -92,13 +93,21 @@ int Profile::sellJunk() {
 }
 
 void Profile::loseGearOnDeath() {
-    if (weapon != WPN_PISTOL && weapon != WPN_NONE) weaponOwned[(int)weapon] = false;
-    if (armor != ARM_NONE) armorOwned[(int)armor] = false;
-    if (backpack != 0) bagOwned[backpack] = false;
+    if (weapon > WPN_NONE && weapon < WPN_COUNT && weapon != WPN_PISTOL)
+        weaponOwned[(int)weapon] = false;
+    for (int i = 0; i < ASL_COUNT; ++i) {
+        ArmorId a = armorSlots[i];
+        if ((int)a > 0 && (int)a < ARM_COUNT) armorOwned[(int)a] = false;
+        armorSlots[i] = ARM_NONE;
+    }
+    if (backpack > 0 && backpack < 4) bagOwned[backpack] = false;
     weapon = WPN_PISTOL;
     armor = ARM_NONE;
+    helmet = ARM_NONE;
+    rig = ARM_NONE;
     backpack = 0;
-    ammo[0] = 18; ammo[1] = 0; ammo[2] = 0;
+    for (int i = 0; i < AMMO_COUNT; ++i) ammo[i] = 0;
+    ammo[0] = 18;
     bandages = 1;
     medkits = 0;
 }
@@ -128,8 +137,9 @@ bool Profile::claimMission(int index) {
         } else coins += WEAPONS[m.weapon].price;
     }
     if (m.armor != ARM_NONE) {
-        if ((int)armor < (int)m.armor) {
-            armor = m.armor;
+        ArmorId cur = armorSlots[armorSlot(m.armor)];
+        if (ARMORS[cur].price < ARMORS[m.armor].price) {
+            equip(m.armor);
             armorOwned[(int)m.armor] = true;
         } else coins += ARMORS[m.armor].price;
     }
@@ -142,17 +152,22 @@ void Profile::addXp(int amount) {
 }
 
 std::string Profile::gearSummary() const {
-    return std::string(WEAPONS[weapon].name) + " · " + ARMORS[armor].name + " · " + BACKPACKS[std::clamp(backpack, 0, 3)].name;
+    return std::string(WEAPONS[weapon].name) + " · " + ARMORS[armorSlots[ASL_HELMET]].name +
+           " · " + ARMORS[armorSlots[ASL_BODY]].name + " · " + ARMORS[armorSlots[ASL_RIG]].name +
+           " · " + BACKPACKS[std::clamp(backpack, 0, 3)].name;
 }
 
 bool Profile::save(const std::string& path) const {
     std::string tmp = path + ".tmp";
     std::ofstream f(tmp, std::ios::trunc);
     if (!f) return false;
-    f << "MAGGOT_SAVE 4\n";
+    f << "MAGGOT_SAVE 5\n";
     f << "coins " << coins << "\n";
     f << "gear " << (int)weapon << " " << (int)armor << " " << backpack << "\n";
-    f << "ammo " << ammo[0] << " " << ammo[1] << " " << ammo[2] << "\n";
+    f << "armors " << (int)armorSlots[0] << " " << (int)armorSlots[1] << " " << (int)armorSlots[2] << "\n";
+    f << "ammo";
+    for (int i = 0; i < AMMO_COUNT; ++i) f << " " << ammo[i];
+    f << "\n";
     f << "meds " << bandages << " " << medkits << "\n";
     f << "stats " << extracted << " " << kills << " " << lootValue << " " << factoryExtracts
       << " " << bossKills << " " << raids << " " << deaths << " " << xp << "\n";
@@ -190,7 +205,8 @@ bool Profile::load(const std::string& path) {
     while (f >> key) {
         if (key == "coins") f >> coins;
         else if (key == "gear") { int w, a; f >> w >> a >> backpack; weapon = (WeaponId)std::clamp(w, 0, (int)WPN_COUNT - 1); armor = (ArmorId)std::clamp(a, 0, (int)ARM_COUNT - 1); }
-        else if (key == "ammo") f >> ammo[0] >> ammo[1] >> ammo[2];
+        else if (key == "armors") { int h = 0, b = 0, r = 0; f >> h >> b >> r; armorSlots[0] = (ArmorId)std::clamp(h, 0, (int)ARM_COUNT - 1); armorSlots[1] = (ArmorId)std::clamp(b, 0, (int)ARM_COUNT - 1); armorSlots[2] = (ArmorId)std::clamp(r, 0, (int)ARM_COUNT - 1); }
+        else if (key == "ammo") { for (int i = 0; i < AMMO_COUNT; ++i) f >> ammo[i]; }
         else if (key == "meds") f >> bandages >> medkits;
         else if (key == "stats") f >> extracted >> kills >> lootValue >> factoryExtracts >> bossKills >> raids >> deaths >> xp;
         else if (key == "settings") f >> settings.volume >> settings.muted >> settings.shake >> settings.fullscreen;
@@ -206,18 +222,24 @@ bool Profile::load(const std::string& path) {
     }
     coins = std::clamp(coins, 0, 100000000);
     backpack = std::clamp(backpack, 0, 3);
-    if (version < 4) {
-        weaponOwned[weapon] = true;
-        armorOwned[armor] = true;
-        bagOwned[backpack] = true;
+    if (version < 5) {
+        for (int i = 0; i < ASL_COUNT; ++i) armorSlots[i] = ARM_NONE;
+        armorSlots[ASL_BODY] = armor;
     }
     // Starters and the currently equipped set must always be usable.
     weaponOwned[WPN_PISTOL] = true;
     armorOwned[ARM_NONE] = true;
     bagOwned[0] = true;
     if (weapon >= 0 && weapon < WPN_COUNT) weaponOwned[(int)weapon] = true;
-    if (armor >= 0 && armor < ARM_COUNT) armorOwned[(int)armor] = true;
+    for (int i = 0; i < ASL_COUNT; ++i) {
+        armorOwned[(int)armorSlots[i]] = true;
+        if (armorSlots[i] == armor) armorOwned[(int)armor] = true;
+    }
     bagOwned[backpack] = true;
+    // Keep the legacy alias fields in sync with the slot table.
+    helmet = armorSlots[ASL_HELMET];
+    rig = armorSlots[ASL_RIG];
+    armor = armorSlots[ASL_BODY];
     for (int i = 0; i < AMMO_COUNT; ++i) ammo[i] = std::clamp(ammo[i], 0, 99999);
     bandages = std::clamp(bandages, 0, 999);
     medkits = std::clamp(medkits, 0, 999);

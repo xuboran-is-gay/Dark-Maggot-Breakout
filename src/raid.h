@@ -17,7 +17,7 @@ struct RaidResult {
     int hits = 0;
     int lootValue = 0;
     int containersSearched = 0;
-    int ammo[AMMO_COUNT] = {0, 0, 0};
+    int ammo[AMMO_COUNT] = {};
     int bandages = 0;
     int medkits = 0;
     float time = 0;
@@ -138,8 +138,10 @@ private:
     u64 seed_ = 0;
     int weapon_ = WPN_PISTOL;
     int armor_ = ARM_NONE;
+    int helmet_ = ARM_NONE;
+    int rig_ = ARM_NONE;
     int backpack_ = 0;
-    int ammo_[AMMO_COUNT] = {0, 0, 0};
+    int ammo_[AMMO_COUNT] = {};
     int loaded_ = 0;
     int bandages_ = 0, medkits_ = 0;
     float lootWeight_ = 0;

@@ -10,13 +10,35 @@ const WeaponDef WEAPONS[WPN_COUNT] = {
       AMMO_12G, 8, 9, 85, 10.5f, 430, 6, 2.35f, 1650, 3.4f, C_DANGER },
     { WPN_RIFLE, "腐酸步枪", "腐酸", "净化队制式武器。射得远，也贵得远。丢了会心疼很久。",
       AMMO_556, 35, 1, 470, 2.2f, 1020, 20, 2.0f, 3300, 3.8f, C_ACCENT },
+    { WPN_MACHINE, "蛆卵冲锋枪", "蛆卵", "从蛆蛹里孵化出的连发武器。射速快，弹匣大，但精度感人。",
+      AMMO_9MM, 11, 1, 940, 7.2f, 520, 45, 1.9f, 2100, 2.8f, Col(224, 176, 96) },
+    { WPN_CARBINE, "锈斑卡宾", "锈斑", " shortened rifle. 比步枪灵活，威力略小，中距离好手。",
+      AMMO_556, 27, 1, 610, 3.0f, 900, 24, 1.8f, 2600, 3.1f, Col(190, 210, 150) },
+    { WPN_SAW, "骨锯轻机枪", "骨锯", "弹链供弹。架住走廊，让所有东西都变成肉泥。",
+      AMMO_762, 24, 1, 620, 8.0f, 940, 60, 3.2f, 5200, 6.2f, Col(236, 138, 92) },
+    { WPN_BOLT, "长钉狙击枪", "长钉", "一发入魂。拉栓很慢，但打中就是赚到。",
+      AMMO_762, 92, 1, 38, 1.4f, 1600, 5, 3.4f, 4600, 4.4f, Col(214, 196, 140) },
+    { WPN_DMR, "腐蚀精确步枪", "腐蚀", "净化队狙击手的家伙。半自动，稳，准，狠。",
+      AMMO_556, 58, 1, 210, 2.0f, 1340, 15, 2.5f, 4100, 4.0f, Col(140, 232, 186) },
 };
 
+// slot, armour hp, damage reduction, rig slots, speed multiplier, price, weight
 const ArmorDef ARMORS[ARM_COUNT] = {
-    { ARM_NONE, "赤裸软体", "没有护甲。你的身体就是护甲。", 0, 0.f, 0, 0, C_MUTED },
-    { ARM_LIGHT, "硬纸胸甲", "聊胜于无。至少能挡住一块飞来的面包。", 26, .26f, 420, 0.8f, C_GOLD },
-    { ARM_PLATE, "铁皮龟壳", "从报废洗衣机上拆下来的。沉，但真能挡子弹。", 68, .44f, 1400, 2.2f, C_CYAN },
-    { ARM_CARAPACE, "蛆王甲壳", "还带着原主人的体温。大部分子弹会在上面打滑。", 115, .58f, 4200, 3.0f, C_ACCENT },
+    { ARM_NONE, "赤裸软体", "没有护甲。你的身体就是护甲。", ASL_BODY, 0, 0.f, 0, 1.f, 0, 0, C_MUTED },
+    { ARM_CAP, "布头巾", "挡不住子弹，但能挡住别人的目光。", ASL_HELMET, 10, .10f, 0, 1.f, 260, 0.3f, C_GOLD },
+    { ARM_STEEL, "铁皮头盔", "从垃圾桶里捡的。至少不会让流弹削掉半个脑袋。", ASL_HELMET, 28, .22f, 0, .96f, 900, 1.4f, C_CYAN },
+    { ARM_RIOT, "防暴头罩", "净化队标准装备。视野差，但脑袋还在。", ASL_HELMET, 52, .34f, 0, .92f, 2200, 2.2f, Col(160, 204, 188) },
+    { ARM_TANK, "蛆王颅壳", "厚得离谱。戴上它你就是会走路的掩体。", ASL_HELMET, 88, .46f, 0, .86f, 4800, 3.4f, C_ACCENT },
+    { ARM_LIGHT, "硬纸胸甲", "聊胜于无。至少能挡住一块飞来的面包。", ASL_BODY, 26, .26f, 0, 1.f, 420, 0.8f, C_GOLD },
+    { ARM_PLATE, "铁皮龟壳", "从报废洗衣机上拆下来的。沉，但真能挡子弹。", ASL_BODY, 68, .44f, 0, .92f, 1400, 2.2f, C_CYAN },
+    { ARM_CARAPACE, "蛆王甲壳", "还带着原主人的体温。大部分子弹会在上面打滑。", ASL_BODY, 115, .58f, 0, .86f, 4200, 3.0f, C_ACCENT },
+    { ARM_IRON, "净化队板甲", "正经军用护甲，又重又硬。穿上就不想跑快。", ASL_BODY, 150, .66f, 0, .78f, 6200, 4.6f, Col(196, 176, 132) },
+    { ARM_WING, "轻骨架胸甲", "用蛆壳纤维编的。几乎不影响移动。", ASL_BODY, 44, .32f, 0, 1.04f, 1800, 1.1f, Col(184, 214, 152) },
+    { ARM_POUCH, "腰间杂物袋", "多挂两个袋子，就多两次活命的机会。", ASL_RIG, 0, 0.f, 4, 1.f, 260, 0.5f, C_GOLD },
+    { ARM_VEST, "战术蛆衣", "兜很多。装得多，跑得也还行。", ASL_RIG, 0, 0.f, 8, .99f, 800, 1.0f, C_CYAN },
+    { ARM_CHEST, "缝合胸挂", "前胸全是弹匣袋。换弹快一点，命就长一点。", ASL_RIG, 0, 0.f, 12, .97f, 1800, 1.6f, Col(214, 182, 136) },
+    { ARM_MILRIG, "军规战术挂", "净化队的完整战术系统。兜多，还轻。", ASL_RIG, 0, 0.f, 18, .94f, 3600, 1.9f, Col(140, 220, 190) },
+    { ARM_PLATE_RIG, "复合板胸挂", "挂上它你就是一座会移动的墙。", ASL_RIG, 12, .12f, 24, .82f, 5400, 3.2f, C_ACCENT },
 };
 
 const BackpackDef BACKPACKS[4] = {
@@ -42,6 +64,7 @@ const ItemDef ITEMS[IT_COUNT] = {
     { "9mm 散装弹", "捡来的子弹。能压进手枪和冲锋枪。", .012f, 3, 0, IK_AMMO, C_GOLD },
     { "12号骨弹", "霰弹枪的粮食。重，但值得。", .050f, 8, 0, IK_AMMO, C_DANGER },
     { "5.56 酸弹", "步枪弹。净化队留下的最后一点温柔。", .015f, 12, 1, IK_AMMO, C_ACCENT },
+    { "7.62 骨芯弹", "机枪和狙击弹。重，贵，能穿墙。", .022f, 18, 1, IK_AMMO, Col(224, 152, 108) },
     { "蛆用绷带", "止血。不能治脑子。", .20f, 60, 0, IK_MED, C_TEXT },
     { "止痛针", "让你暂时忘记自己正在流血。", .30f, 220, 1, IK_MED, C_CYAN },
 };
@@ -77,24 +100,33 @@ const EnemyDef ENEMIES[4] = {
 };
 
 const char* ammoName(AmmoId a) {
-    static const char* n[AMMO_COUNT] = { "9mm 腐弹", "12号骨弹", "5.56 酸弹" };
+    static const char* n[AMMO_COUNT] = { "9mm 腐弹", "12号骨弹", "5.56 酸弹", "7.62 骨芯弹" };
     return n[(int)a];
 }
 const char* ammoShort(AmmoId a) {
-    static const char* n[AMMO_COUNT] = { "9mm", "12G", "5.56" };
+    static const char* n[AMMO_COUNT] = { "9mm", "12G", "5.56", "7.62" };
     return n[(int)a];
 }
 int ammoPrice(AmmoId a) {
-    static const int p[AMMO_COUNT] = { 110, 120, 260 };
+    static const int p[AMMO_COUNT] = { 110, 120, 260, 340 };
     return p[(int)a];
 }
 int ammoBox(AmmoId a) {
-    static const int c[AMMO_COUNT] = { 30, 12, 20 };
+    static const int c[AMMO_COUNT] = { 30, 12, 20, 20 };
     return c[(int)a];
 }
 float ammoUnitWeight(AmmoId a) {
-    static const float w[AMMO_COUNT] = { .012f, .05f, .015f };
+    static const float w[AMMO_COUNT] = { .012f, .05f, .015f, .022f };
     return w[(int)a];
+}
+ArmorSlot armorSlot(ArmorId a) {
+    if (a < ARM_CAP) return ASL_BODY;
+    if (a <= ARM_TANK) return ASL_HELMET;
+    if (a < ARM_LIGHT) return ASL_BODY;
+    if (a <= ARM_WING) return ASL_BODY;
+    if (a < ARM_POUCH) return ASL_RIG;
+    if (a <= ARM_PLATE_RIG) return ASL_RIG;
+    return ASL_BODY;
 }
 Col rarityColor(int rarity) {
     switch (rarity) {

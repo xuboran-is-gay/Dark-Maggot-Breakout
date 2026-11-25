@@ -2,10 +2,20 @@
 #include "core.h"
 
 enum WeaponId {
-    WPN_NONE = 0, WPN_PISTOL, WPN_SMG, WPN_SHOTGUN, WPN_RIFLE, WPN_COUNT
+    WPN_NONE = 0, WPN_PISTOL, WPN_SMG, WPN_SHOTGUN, WPN_RIFLE,
+    WPN_MACHINE, WPN_CARBINE, WPN_SAW, WPN_BOLT, WPN_DMR,
+    WPN_COUNT
 };
-enum AmmoId { AMMO_9MM = 0, AMMO_12G, AMMO_556, AMMO_COUNT };
-enum ArmorId { ARM_NONE = 0, ARM_LIGHT, ARM_PLATE, ARM_CARAPACE, ARM_COUNT };
+enum AmmoId { AMMO_9MM = 0, AMMO_12G, AMMO_556, AMMO_762, AMMO_COUNT };
+// Helmet ids 1-4, body armour 5-9, chest rig 10-14.
+enum ArmorId {
+    ARM_NONE = 0,
+    ARM_CAP, ARM_STEEL, ARM_RIOT, ARM_TANK,
+    ARM_LIGHT, ARM_PLATE, ARM_CARAPACE, ARM_IRON, ARM_WING,
+    ARM_POUCH, ARM_VEST, ARM_CHEST, ARM_MILRIG, ARM_PLATE_RIG,
+    ARM_COUNT
+};
+enum ArmorSlot { ASL_HELMET = 0, ASL_BODY, ASL_RIG, ASL_COUNT };
 
 struct WeaponDef {
     WeaponId id;
@@ -29,8 +39,11 @@ struct ArmorDef {
     ArmorId id;
     const char* name;
     const char* desc;
-    int armor;
-    float reduction;
+    ArmorSlot slot;      // helmet / body / rig
+    int armor;           // helmet or body protection points (0 for rigs)
+    float reduction;    // damage reduction
+    int slots;           // extra carry capacity for rigs
+    float speedMul;     // walk speed multiplier (1 = no penalty)
     int price;
     float weight;
     Col accent;
@@ -48,7 +61,7 @@ enum ItemKind { IK_JUNK, IK_FOOD, IK_TECH, IK_ORGANIC, IK_TREASURE, IK_AMMO, IK_
 enum ItemId {
     IT_SCREW = 0, IT_BREAD, IT_OIL, IT_PHONE, IT_MUSHROOM, IT_PROTEIN,
     IT_CHIP, IT_EGG, IT_GLAND, IT_DOGTAG, IT_EYE, IT_HAIR,
-    IT_AMMO9, IT_AMMO12G, IT_AMMO556, IT_BANDAGE, IT_MEDKIT, IT_COUNT
+    IT_AMMO9, IT_AMMO12G, IT_AMMO556, IT_AMMO762, IT_BANDAGE, IT_MEDKIT, IT_COUNT
 };
 
 struct ItemDef {
@@ -111,6 +124,7 @@ struct EnemyDef {
 extern const WeaponDef WEAPONS[WPN_COUNT];
 extern const ArmorDef ARMORS[ARM_COUNT];
 extern const BackpackDef BACKPACKS[4];
+ArmorSlot armorSlot(ArmorId a);
 extern const ItemDef ITEMS[IT_COUNT];
 extern const MapDef MAPS[3];
 extern const MissionDef MISSIONS[5];

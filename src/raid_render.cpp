@@ -390,10 +390,10 @@ void Raid::drawPlayer(UI& ui, Vec2 cam) {
     drawMaggot(ui, s, player_.angle, scale, Col(190, 216, 98), Col(76, 99, 39), player_.walkPhase, false, false);
 
     // Armor plate strapped across the middle.
-    if (armor_ > 0) {
+    if (armor_ > 0 || helmet_ > 0 || rig_ > 0) {
         Vec2 c = s + fromAngle(player_.angle, 2.f);
         Vec2 d = fromAngle(player_.angle, 1.f), pp = fromAngle(player_.angle + RPI * .5f, 1.f);
-        Col ac = ARMORS[armor_].accent;
+        Col ac = ARMORS[armor_ > 0 ? armor_ : (helmet_ > 0 ? helmet_ : rig_)].accent;
         ui.line(c - d * 7 + pp * 7, c + d * 6 + pp * 7, withAlpha(ac, 210), 5.f);
         ui.line(c - d * 7 - pp * 7, c + d * 6 - pp * 7, withAlpha(ac, 210), 5.f);
         ui.circle(c + d * 4, 3.f, withAlpha(C_WHITE, 100), 8);
@@ -572,7 +572,7 @@ void Raid::drawHUD(UI& ui, Vec2 cam) {
     Col hpCol = player_.hp > 55 ? C_ACCENT : (player_.hp > 28 ? C_GOLD : C_DANGER);
     ui.bar({40, VIEW_H - 104, 316, 10}, clamp01(player_.hp / 100.f), hpCol,
            Col(10, 8, 8, 220), C_BORDER);
-    ui.text(ARMORS[armor_].name, 40, VIEW_H - 84, 13, C_MUTED);
+    ui.text(ARMORS[armor_].name + (helmet_ > ARM_NONE ? std::string(" / ") + ARMORS[helmet_].name : std::string("")) + (rig_ > ARM_NONE ? std::string(" / ") + ARMORS[rig_].name : std::string("")), 40, VIEW_H - 84, 11, C_MUTED);
     ui.text(std::to_string((int)std::lround(player_.armorHp)) + " / " + std::to_string((int)player_.armorMax),
             356, VIEW_H - 84, 13, player_.armorHp <= 0 ? C_DANGER : C_CYAN, ALIGN_RIGHT);
     ui.bar({40, VIEW_H - 66, 316, 5}, player_.armorMax > 0 ? clamp01(player_.armorHp / player_.armorMax) : 0.f,

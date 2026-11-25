@@ -20,15 +20,18 @@ struct Settings {
 struct Profile {
     int coins = 1800;
     WeaponId weapon = WPN_PISTOL;
-    ArmorId armor = ARM_NONE;
+    ArmorId armor = ARM_NONE;   // body armour (kept in sync with armorSlots[ASL_BODY])
+    ArmorId helmet = ARM_NONE;
+    ArmorId rig = ARM_NONE;
+    ArmorId armorSlots[ASL_COUNT] = {ARM_NONE, ARM_NONE, ARM_NONE};
     int backpack = 0;
-    int ammo[AMMO_COUNT] = {24, 0, 0};
+    int ammo[AMMO_COUNT] = {24, 0, 0, 0};
     int bandages = 2;
     int medkits = 0;
 
     // Permanent unlocks. Gear is only lost when carried into a raid and dies.
-    bool weaponOwned[WPN_COUNT] = {false, true, false, false, false};
-    bool armorOwned[ARM_COUNT] = {true, false, false, false};
+    bool weaponOwned[WPN_COUNT] = {};
+    bool armorOwned[ARM_COUNT] = {};
     bool bagOwned[4] = {true, false, false, false};
 
     std::vector<ItemStack> stash;
@@ -52,6 +55,15 @@ struct Profile {
     bool ownsWeapon(WeaponId w) const { return (int)w >= 0 && (int)w < WPN_COUNT && weaponOwned[(int)w]; }
     bool ownsArmor(ArmorId a) const { return (int)a >= 0 && (int)a < ARM_COUNT && armorOwned[(int)a]; }
     bool ownsBackpack(int b) const { return b >= 0 && b < 4 && bagOwned[b]; }
+    ArmorId equippedIn(ArmorSlot slot) const { return armorSlots[slot]; }
+    void equip(ArmorId a) {
+        if ((int)a < 0 || (int)a >= ARM_COUNT) return;
+        ArmorSlot sl = armorSlot(a);
+        armorSlots[sl] = a;
+        if (sl == ASL_BODY) armor = a;
+        else if (sl == ASL_HELMET) helmet = a;
+        else rig = a;
+    }
 
     int stashCount() const;
     int stashWeight() const;

@@ -101,11 +101,17 @@ bool Game::init(const GameOptions& opts) {
         // A deterministic, lived-in profile makes the documentation screens look real.
         profile_.coins = 12480;
         profile_.weapon = WPN_SMG;
+        profile_.armorSlots[ASL_BODY] = ARM_PLATE;
+        profile_.armorSlots[ASL_HELMET] = ARM_RIOT;
+        profile_.armorSlots[ASL_RIG] = ARM_CHEST;
         profile_.armor = ARM_PLATE;
+        profile_.helmet = ARM_RIOT;
+        profile_.rig = ARM_CHEST;
         profile_.backpack = 2;
         profile_.ammo[0] = 96;
         profile_.ammo[1] = 12;
         profile_.ammo[2] = 20;
+        profile_.ammo[3] = 40;
         profile_.bandages = 4;
         profile_.medkits = 2;
         for (bool& v : profile_.weaponOwned) v = true;
@@ -283,8 +289,9 @@ void Game::update(float dt) {
     }
 
     if (input_.keyHit(SDL_SCANCODE_ESCAPE)) {
-        if (screen_ == Screen::DEPLOY && loadoutOpen_) {
-            loadoutOpen_ = false;
+        if (screen_ == Screen::LOADOUT) {
+            loadoutConfigured_ = true;
+            setScreen(Screen::DEPLOY);
             saveGame(true);
             return;
         }
@@ -296,7 +303,7 @@ void Game::update(float dt) {
         return;
     }
 
-    if (screen_ == Screen::DEPLOY && !loadoutOpen_ && input_.wheel != 0) {
+    if (screen_ == Screen::DEPLOY && input_.wheel != 0) {
         int next = std::clamp(deployMap_ + (input_.wheel > 0 ? -1 : 1), 0, 2);
         deployMap_ = next;
     }
@@ -327,6 +334,7 @@ void Game::renderMenuScene() {
     switch (screen_) {
         case Screen::HUB: drawHub(); break;
         case Screen::DEPLOY: drawDeploy(); break;
+        case Screen::LOADOUT: drawLoadout(); break;
         case Screen::STASH: drawStash(); break;
         case Screen::MISSIONS: drawMissions(); break;
         case Screen::SHOP: drawShop(); break;
@@ -340,11 +348,19 @@ void Game::setScreen(Screen s) {
     screen_ = s;
     if (s == Screen::RAID) audio_.setAmbient(2);
     else audio_.setAmbient(1);
-    if (s == Screen::DEPLOY) { loadoutOpen_ = false; deployMap_ = std::clamp(deployMap_, 0, 2); }
+    if (s == Screen::DEPLOY) {
+        deployMap_ = std::clamp(deployMap_, 0, 2);
+        if (!loadoutConfigured_) { setScreen(Screen::LOADOUT); return; }
+    }
     if (s == Screen::STASH && stashSel_ >= (int)profile_.stash.size()) stashSel_ = -1;
 }
 
 void Game::beginRaid() {
+    if (!loadoutConfigured_ && !knifeRun_) {
+        notify("请先在配装终端确认本次装备", C_GOLD);
+        setScreen(Screen::LOADOUT);
+        return;
+    }
     if (!mapUnlocked(deployMap_)) {
         notify("该封锁区尚未解锁", C_DANGER);
         return;
@@ -369,7 +385,10 @@ void Game::beginRaid() {
     Profile raidProfile = profile_;
     if (knife) {
         raidProfile.weapon = WPN_NONE;
+        for (int i = 0; i < ASL_COUNT; ++i) raidProfile.armorSlots[i] = ARM_NONE;
         raidProfile.armor = ARM_NONE;
+        raidProfile.helmet = ARM_NONE;
+        raidProfile.rig = ARM_NONE;
         raidProfile.backpack = 0;
         for (auto& a : raidProfile.ammo) a = 0;
         raidProfile.bandages = 0;
@@ -408,6 +427,7 @@ void Game::applyResult() {
             profile_.ammo[0] = result_.ammo[0];
             profile_.ammo[1] = result_.ammo[1];
             profile_.ammo[2] = result_.ammo[2];
+            profile_.ammo[3] = result_.ammo[3];
             profile_.bandages = result_.bandages;
             profile_.medkits = result_.medkits;
         }
@@ -428,6 +448,7 @@ void Game::applyResult() {
             profile_.ammo[0] = result_.ammo[0];
             profile_.ammo[1] = result_.ammo[1];
             profile_.ammo[2] = result_.ammo[2];
+            profile_.ammo[3] = result_.ammo[3];
             profile_.bandages = result_.bandages;
             profile_.medkits = result_.medkits;
         }
@@ -587,8 +608,8 @@ bool Game::screenshotSetup() {
     } else if (shot == "deploy" || shot == "deploy_knife" || shot == "deploy_loadout") {
         deployMap_ = std::clamp(opts_.map, 0, 2);
         knifeRun_ = shot == "deploy_knife";
-        loadoutOpen_ = shot == "deploy_loadout";
-        screen_ = Screen::DEPLOY;
+        loadoutConfigured_ = true;
+        screen_ = shot == "deploy_loadout" ? Screen::LOADOUT : Screen::DEPLOY;
     } else if (shot == "stash") {
         stashSel_ = profile_.stash.empty() ? -1 : 0;
         screen_ = Screen::STASH;
@@ -628,7 +649,7 @@ bool Game::screenshotSetup() {
         result_.bossKilled = false;
         result_.reason = "从生鲜卸货区成功撤离";
         result_.loot = {{IT_CHIP, 1}, {IT_MUSHROOM, 2}, {IT_PHONE, 1}, {IT_DOGTAG, 1}, {IT_OIL, 2}};
-        result_.ammo[0] = 63; result_.ammo[1] = 0; result_.ammo[2] = 20;
+        result_.ammo[0] = 63; result_.ammo[1] = 0; result_.ammo[2] = 20; result_.ammo[3] = 40;
         result_.bandages = 2; result_.medkits = 1;
         lastXp_ = 441;
         screen_ = Screen::RESULT;

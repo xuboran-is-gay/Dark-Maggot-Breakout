@@ -137,10 +137,6 @@ void Game::drawHub() {
 void Game::drawDeploy() {
     drawBackdrop(time_, MAPS[deployMap_].accent);
     drawTopBar(true, "潜入准备", "选择封锁区 · 检查弹药 · 活着回来");
-    if (loadoutOpen_) {
-        drawLoadoutPanel();
-        return;
-    }
 
     const float cardY = 96.f, cardH = 208.f, cardW = 252.f;
     for (int i = 0; i < 3; ++i) {
@@ -229,8 +225,10 @@ void Game::drawDeploy() {
     ui_.fillF(lo.x, lo.y, 4, lo.h, C_ACCENT);
     ui_.text("本次配装", 882, 112, 22, C_TEXT);
     if (ui_.button({1044, 108, 168, 28}, "更换配装", true, false, 12)) {
-        loadoutOpen_ = true;
+        loadoutConfigured_ = true;
+        setScreen(Screen::LOADOUT);
         audio_.play(SFX_UI_CLICK, .55f, 1.05f);
+        return;
     }
 
     const WeaponDef& wp = WEAPONS[profile_.weapon];
@@ -245,14 +243,19 @@ void Game::drawDeploy() {
     ui_.bar({882, 230, 330, 4}, clamp01(reserve / 120.f), reserve > 0 ? C_ACCENT : C_DANGER,
             Col(8, 11, 8, 220), C_BORDER);
 
-    const ArmorDef& ar = ARMORS[profile_.armor];
+    const ArmorDef& hd = ARMORS[profile_.armorSlots[ASL_HELMET]];
+    const ArmorDef& ar = ARMORS[profile_.armorSlots[ASL_BODY]];
+    const ArmorDef& rg = ARMORS[profile_.armorSlots[ASL_RIG]];
     const BackpackDef& bp = BACKPACKS[std::clamp(profile_.backpack, 0, 3)];
-    ui_.text("护甲", 882, 250, 11, C_MUTED);
-    ui_.text(ar.name, 882, 266, 14, C_TEXT);
-    ui_.text(ar.armor > 0 ? ("护甲 " + std::to_string(ar.armor)) : "无防护", 1212, 270, 10, C_MUTED, ALIGN_RIGHT);
-    ui_.text("背包", 882, 292, 11, C_MUTED);
-    ui_.text(bp.name, 882, 308, 14, C_TEXT);
-    ui_.text(std::to_string(bp.capacity) + " kg", 1212, 312, 10, C_MUTED, ALIGN_RIGHT);
+    ui_.text("头盔", 882, 246, 10, C_MUTED);
+    ui_.text(hd.name, 952, 244, 12, C_TEXT);
+    ui_.text("护甲", 882, 264, 10, C_MUTED);
+    ui_.text(ar.name, 952, 262, 12, C_TEXT);
+    ui_.text("胸挂", 882, 282, 10, C_MUTED);
+    ui_.text(rg.name, 952, 280, 12, C_TEXT);
+    ui_.text("背包", 882, 304, 10, C_MUTED);
+    ui_.text(bp.name, 952, 302, 12, C_TEXT);
+    ui_.text("容量 " + std::to_string(bp.capacity + rg.slots) + " kg", 1212, 302, 10, C_MUTED, ALIGN_RIGHT);
 
     ui_.line({882, 338}, {1212, 338}, C_BORDER, 1.f);
     ui_.text("弹药补给", 882, 352, 12, C_GOLD);
@@ -305,127 +308,148 @@ void Game::drawDeploy() {
     ui_.text("放弃行动：保装备，丢战利品", 882, 750, 10, C_MUTED);
 }
 
-void Game::drawLoadoutPanel() {
+void Game::drawLoadout() {
     ui_.fillF(0, 0, VIEW_W, VIEW_H, Col(3, 6, 4, 242));
-    Rect p{120, 64, 1040, 672};
-    ui_.panel(p, Col(11, 17, 10, 248), C_ACCENT2, 12);
+    Rect p{56, 56, 1168, 688};
+    ui_.panel(p, Col(11, 17, 10, 250), C_ACCENT2, 12);
     ui_.fillF(p.x, p.y, 4, p.h, C_ACCENT);
-    ui_.text("配装终端", 152, 86, 28, C_TEXT);
-    ui_.text("点击已拥有的装备立即更换 · 下方实时预览", 152, 122, 11, C_MUTED);
-    ui_.text("战备值", 964, 90, 11, C_MUTED, ALIGN_RIGHT);
-    ui_.text(formatMoney(profile_.gearValue()), 1128, 84, 24, C_GOLD, ALIGN_RIGHT);
+    drawTopBar(true, "配装终端", "点击已拥有装备立即更换 · 右侧动态预览当前配装 · 返回潜入准备自动保存");
+    ui_.text("配装终端", 88, 86, 22, C_TEXT);
+    ui_.text("战备值", 1160, 84, 11, C_MUTED, ALIGN_RIGHT);
+    ui_.text(formatMoney(profile_.gearValue()), 1192, 78, 24, C_GOLD, ALIGN_RIGHT);
 
-    const float xs[3] = {152.f, 480.f, 808.f};
-    const char* heads[3] = {"主武器", "护甲", "背包"};
-    for (int c = 0; c < 3; ++c) {
-        int ownedCount = 0, total = 0;
-        if (c == 0) { for (int i = 1; i < WPN_COUNT; ++i) { total++; if (profile_.ownsWeapon((WeaponId)i)) ownedCount++; } }
-        if (c == 1) { for (int i = 0; i < ARM_COUNT; ++i) { total++; if (profile_.ownsArmor((ArmorId)i)) ownedCount++; } }
-        if (c == 2) { for (int i = 0; i < 4; ++i) { total++; if (profile_.ownsBackpack(i)) ownedCount++; } }
-        ui_.text(heads[c], xs[c], 154, 16, C_TEXT);
-        ui_.text("已拥有 " + std::to_string(ownedCount) + " / " + std::to_string(total),
-                 xs[c] + 300, 158, 9, C_MUTED, ALIGN_RIGHT);
+    const float cw[5] = {80.f, 306.f, 532.f, 758.f, 984.f};
+    const char* heads[5] = {"主武器", "头盔", "护甲", "胸挂", "背包"};
+    for (int c = 0; c < 5; ++c) {
+        ui_.text(heads[c], cw[c], 124, 14, C_TEXT);
+        ui_.line({cw[c], 144}, {cw[c] + 210, 144}, C_BORDER, 1.f);
     }
 
+    auto itemCard = [&](float x, float y, float w, const std::string& name,
+                        const std::string& sub, Col accent, bool owned, bool equipped,
+                        const std::string& price) {
+        Rect r{x, y, w, 44};
+        bool hov = ui_.hovered(r);
+        ui_.chamfer(r, 4, equipped ? Col(30, 46, 24, 248) : (owned ? Col(17, 26, 16, 240) : Col(10, 14, 9, 220)));
+        ui_.chamferOutline(r, 4, equipped ? C_ACCENT : (hov && owned ? C_ACCENT2 : (owned ? C_BORDER : Col(32, 38, 29))),
+                            equipped ? 1.8f : 1.f);
+        ui_.fillF(r.x, r.y + 5, 3, r.h - 10, owned ? withAlpha(accent, 210) : Col(48, 54, 42));
+        ui_.text(name, r.x + 10, r.y + 5, 13, owned ? C_TEXT : C_MUTED);
+        ui_.text(sub, r.x + 10, r.y + 25, 9, owned ? C_MUTED : Col(80, 86, 70));
+        if (equipped) ui_.text("已装备", r.right() - 8, r.y + 5, 10, C_ACCENT, ALIGN_RIGHT);
+        else if (owned) ui_.text("可换", r.right() - 8, r.y + 5, 10, C_CYAN, ALIGN_RIGHT);
+        else ui_.text(price, r.right() - 8, r.y + 5, 11, C_GOLD, ALIGN_RIGHT);
+        return r;
+    };
+
+    // Weapons
     for (int i = 1; i < WPN_COUNT; ++i) {
         const WeaponDef& w = WEAPONS[i];
-        Rect r{xs[0], 180.f + (i - 1) * 78.f, 300, 68};
         bool owned = profile_.ownsWeapon((WeaponId)i);
-        bool equipped = profile_.weapon == (WeaponId)i;
-        bool hov = ui_.hovered(r);
-        ui_.chamfer(r, 5, equipped ? Col(30, 44, 24, 245) : (owned ? Col(17, 26, 16, 238) : Col(10, 14, 9, 220)));
-        ui_.chamferOutline(r, 5, equipped ? C_ACCENT : (hov && owned ? C_ACCENT2 : (owned ? C_BORDER : Col(30, 36, 27))),
-                           equipped ? 1.8f : 1.f);
-        ui_.fillF(r.x, r.y + 6, 3, r.h - 12, owned ? withAlpha(w.accent, 220) : Col(48, 54, 42));
-        ui_.text(w.name, r.x + 12, r.y + 8, 16, owned ? C_TEXT : C_MUTED);
-        ui_.text(w.shortName, r.x + 12, r.y + 32, 9, owned ? C_MUTED : Col(78, 86, 70));
-        ui_.text("伤害 " + std::to_string(w.damage) + (w.pellets > 1 ? "×" + std::to_string(w.pellets) : "") +
-                 " · 射速 " + std::to_string((int)w.rpm) + " · 弹匣 " + std::to_string(w.mag),
-                 r.x + 12, r.y + 48, 9, owned ? C_TEXT : Col(82, 88, 72));
-        if (equipped) ui_.text("已装备", r.right() - 12, r.y + 10, 11, C_ACCENT, ALIGN_RIGHT);
-        else if (owned) ui_.text("可更换", r.right() - 12, r.y + 10, 11, C_CYAN, ALIGN_RIGHT);
-        else ui_.text("¥" + formatMoney(w.price), r.right() - 12, r.y + 10, 12, C_GOLD, ALIGN_RIGHT);
-        if (owned && !equipped && input_.released && r.contains(input_.pressPos)) {
+        bool eq = profile_.weapon == (WeaponId)i;
+        Rect r = itemCard(cw[0], 152.f + (i - 1) * 48.f, 210, w.name,
+                          "伤" + std::to_string(w.damage) + " 射" + std::to_string((int)w.rpm) + " 匣" + std::to_string(w.mag),
+                          w.accent, owned, eq, "¥" + formatMoney(w.price));
+        if (owned && !eq && input_.released && r.contains(input_.pressPos)) {
             profile_.weapon = (WeaponId)i;
             audio_.play(SFX_UI_CLICK, .55f, 1.08f);
         }
     }
-    for (int i = 0; i < ARM_COUNT; ++i) {
-        const ArmorDef& a = ARMORS[i];
-        Rect r{xs[1], 180.f + i * 78.f, 300, 68};
-        bool owned = profile_.ownsArmor((ArmorId)i);
-        bool equipped = profile_.armor == (ArmorId)i;
-        bool hov = ui_.hovered(r);
-        ui_.chamfer(r, 5, equipped ? Col(30, 44, 24, 245) : (owned ? Col(17, 26, 16, 238) : Col(10, 14, 9, 220)));
-        ui_.chamferOutline(r, 5, equipped ? C_ACCENT : (hov && owned ? C_ACCENT2 : (owned ? C_BORDER : Col(30, 36, 27))),
-                           equipped ? 1.8f : 1.f);
-        ui_.fillF(r.x, r.y + 6, 3, r.h - 12, owned ? withAlpha(a.accent, 220) : Col(48, 54, 42));
-        ui_.text(a.name, r.x + 12, r.y + 8, 16, owned ? C_TEXT : C_MUTED);
-        if (i == 0) ui_.text("无防护", r.x + 12, r.y + 34, 9, C_MUTED);
-        else ui_.text("护甲 " + std::to_string(a.armor) + " · 减伤 " +
-                      std::to_string((int)std::lround(a.reduction * 100)) + "% · " +
-                      kgText((int)std::lround(a.weight * 1000)), r.x + 12, r.y + 34, 9,
-                      owned ? C_TEXT : Col(82, 88, 72));
-        if (equipped) ui_.text("已装备", r.right() - 12, r.y + 10, 11, C_ACCENT, ALIGN_RIGHT);
-        else if (owned) ui_.text("可更换", r.right() - 12, r.y + 10, 11, C_CYAN, ALIGN_RIGHT);
-        else ui_.text("¥" + formatMoney(a.price), r.right() - 12, r.y + 10, 12, C_GOLD, ALIGN_RIGHT);
-        if (owned && !equipped && input_.released && r.contains(input_.pressPos)) {
-            profile_.armor = (ArmorId)i;
-            audio_.play(SFX_UI_CLICK, .55f, 1.08f);
+    // Armor slots: helmet / body / rig
+    const ArmorSlot slots[3] = {ASL_HELMET, ASL_BODY, ASL_RIG};
+    for (int s = 0; s < 3; ++s) {
+        ArmorSlot sl = slots[s];
+        for (int i = 1; i < ARM_COUNT; ++i) {
+            const ArmorDef& a = ARMORS[i];
+            if (armorSlot((ArmorId)i) != sl) continue;
+            bool owned = profile_.ownsArmor((ArmorId)i);
+            bool eq = profile_.armorSlots[sl] == (ArmorId)i;
+            int row = 0;
+            for (int k = 1; k < i; ++k) if (armorSlot((ArmorId)k) == sl) row++;
+            std::string sub = "甲" + std::to_string(a.armor) + " 减" + std::to_string((int)std::lround(a.reduction * 100)) + "%";
+            if (a.slots > 0) sub += " 容量+" + std::to_string(a.slots);
+            Rect r = itemCard(cw[s + 1], 152.f + row * 48.f, 210, a.name, sub,
+                              a.accent, owned, eq, "¥" + formatMoney(a.price));
+            if (owned && !eq && input_.released && r.contains(input_.pressPos)) {
+                profile_.equip((ArmorId)i);
+                audio_.play(SFX_UI_CLICK, .55f, 1.08f);
+            }
         }
     }
+    // Backpacks
     for (int i = 0; i < 4; ++i) {
         const BackpackDef& b = BACKPACKS[i];
-        Rect r{xs[2], 180.f + i * 78.f, 300, 68};
         bool owned = profile_.ownsBackpack(i);
-        bool equipped = profile_.backpack == i;
-        bool hov = ui_.hovered(r);
-        ui_.chamfer(r, 5, equipped ? Col(30, 44, 24, 245) : (owned ? Col(17, 26, 16, 238) : Col(10, 14, 9, 220)));
-        ui_.chamferOutline(r, 5, equipped ? C_ACCENT : (hov && owned ? C_ACCENT2 : (owned ? C_BORDER : Col(30, 36, 27))),
-                           equipped ? 1.8f : 1.f);
-        ui_.fillF(r.x, r.y + 6, 3, r.h - 12, owned ? withAlpha(b.accent, 220) : Col(48, 54, 42));
-        ui_.text(b.name, r.x + 12, r.y + 8, 16, owned ? C_TEXT : C_MUTED);
-        ui_.text("容量 " + std::to_string(b.capacity) + " kg", r.x + 12, r.y + 34, 9,
-                 owned ? C_TEXT : Col(82, 88, 72));
-        if (equipped) ui_.text("已装备", r.right() - 12, r.y + 10, 11, C_ACCENT, ALIGN_RIGHT);
-        else if (owned) ui_.text("可更换", r.right() - 12, r.y + 10, 11, C_CYAN, ALIGN_RIGHT);
-        else ui_.text("¥" + formatMoney(b.price), r.right() - 12, r.y + 10, 12, C_GOLD, ALIGN_RIGHT);
-        if (owned && !equipped && input_.released && r.contains(input_.pressPos)) {
+        bool eq = profile_.backpack == i;
+        Rect r = itemCard(cw[4], 152.f + i * 48.f, 210, b.name,
+                          "容量 " + std::to_string(b.capacity) + " kg",
+                          b.accent, owned, eq, "¥" + formatMoney(b.price));
+        if (owned && !eq && input_.released && r.contains(input_.pressPos)) {
             profile_.backpack = i;
             audio_.play(SFX_UI_CLICK, .55f, 1.08f);
         }
     }
 
-    Rect pv{152, 504, 956, 126};
-    ui_.panel(pv, Col(14, 21, 13, 238), C_BORDER, 8);
-    ui_.text("实时预览", 172, 518, 11, C_ACCENT);
+    // Dynamic live preview: animated maggot mannequin wearing the current loadout.
+    Rect pv{80, 584, 700, 118};
+    ui_.panel(pv, Col(14, 21, 13, 240), C_BORDER, 8);
+    float bob = std::sin(time_ * 2.6f) * 2.f;
+    Vec2 c{150.f, 644.f + bob};
+    const ArmorDef& hd = ARMORS[profile_.armorSlots[ASL_HELMET]];
+    const ArmorDef& bd = ARMORS[profile_.armorSlots[ASL_BODY]];
+    const ArmorDef& rd = ARMORS[profile_.armorSlots[ASL_RIG]];
+    const BackpackDef& bpd = BACKPACKS[std::clamp(profile_.backpack, 0, 3)];
     const WeaponDef& wp = WEAPONS[profile_.weapon];
-    const ArmorDef& ar = ARMORS[profile_.armor];
-    const BackpackDef& bp = BACKPACKS[std::clamp(profile_.backpack, 0, 3)];
-    ui_.text(std::string(wp.name) + "  ·  伤害 " + std::to_string(wp.damage) +
-             (wp.pellets > 1 ? "×" + std::to_string(wp.pellets) : "") +
-             "  ·  射速 " + std::to_string((int)wp.rpm) + "  ·  弹匣 " + std::to_string(wp.mag),
-             172, 544, 12, C_TEXT);
-    ui_.text(std::string(ar.name) + "  ·  护甲 " + std::to_string(ar.armor) + "  ·  减伤 " +
-             std::to_string((int)std::lround(ar.reduction * 100)) + "%",
-             172, 570, 11, C_MUTED);
-    ui_.text(std::string(bp.name) + "  ·  容量 " + std::to_string(bp.capacity) + " kg",
-             172, 594, 11, C_MUTED);
-    ui_.text("备弹 9mm " + std::to_string(profile_.ammo[0]) + "  ·  12G " +
-             std::to_string(profile_.ammo[1]) + "  ·  5.56 " + std::to_string(profile_.ammo[2]),
-             172, 616, 10, C_GOLD);
-    ui_.text("战备值", 1088, 536, 11, C_MUTED, ALIGN_RIGHT);
-    ui_.text(formatMoney(profile_.gearValue()), 1088, 558, 28, C_GOLD, ALIGN_RIGHT);
+    // backpack
+    ui_.chamfer({c.x - 44, c.y - 26, 22, 52}, 4, withAlpha(bpd.accent, 200));
+    // segmented body
+    for (int i = 0; i < 4; ++i) {
+        ui_.circle(c + Vec2((float)i * 9.f - 12.f, (float)std::sin(time_ * 2.6f + i) * 1.5f), 13.f - i,
+                   (i == 0 ? Col(196, 208, 176) : Col(168, 186, 148)), 12);
+    }
+    // chest rig + body armour plates
+    ui_.chamfer({c.x - 14, c.y - 20, 30, 34}, 4, withAlpha(bd.accent, 190));
+    ui_.chamfer({c.x - 14, c.y - 14, 30, 14}, 3, withAlpha(rd.accent, 210));
+    // helmet
+    ui_.circle(c + Vec2(-16.f, -12.f), 11.f, withAlpha(hd.accent, 220), 14);
+    // weapon
+    ui_.line(c + Vec2(-8.f, -6.f), c + Vec2(52.f, -14.f), withAlpha(wp.accent, 230), 5.f);
+    ui_.text("当前配装预览", pv.x + 12, pv.y + 8, 10, C_ACCENT);
+    ui_.text(std::string(wp.name) + " · " + hd.name + " · " + bd.name + " · " + rd.name + " · " + bpd.name,
+             pv.x + 12, pv.y + pv.h - 20, 11, C_MUTED);
 
-    if (ui_.button({152, 654, 180, 44}, "返回", true, false, 15)) {
-        loadoutOpen_ = false;
+    Rect pv2{796, 584, 396, 118};
+    ui_.panel(pv2, Col(14, 21, 13, 240), C_BORDER, 8);
+    ui_.text("实时属性", pv2.x + 12, pv2.y + 8, 10, C_ACCENT);
+    int totalArmor = ARMORS[profile_.armorSlots[ASL_HELMET]].armor +
+                     ARMORS[profile_.armorSlots[ASL_BODY]].armor +
+                     ARMORS[profile_.armorSlots[ASL_RIG]].armor;
+    float reduction = ARMORS[profile_.armorSlots[ASL_HELMET]].reduction +
+                      ARMORS[profile_.armorSlots[ASL_BODY]].reduction +
+                      ARMORS[profile_.armorSlots[ASL_RIG]].reduction;
+    ui_.text("武器 " + std::to_string(wp.damage) + " 伤害 · " + std::to_string((int)wp.rpm) + " 射速 · " + std::to_string(wp.mag) + " 弹匣",
+             pv2.x + 12, pv2.y + 30, 11, C_TEXT);
+    ui_.text("防护 " + std::to_string(totalArmor) + " 护甲 · " + std::to_string((int)std::lround(reduction * 100.f)) + "% 减伤",
+             pv2.x + 12, pv2.y + 52, 11, C_MUTED);
+    ui_.text("容量 " + std::to_string(BACKPACKS[std::clamp(profile_.backpack, 0, 3)].capacity + rd.slots) + " kg" +
+             " · 战备 " + formatMoney(profile_.gearValue()), pv2.x + 12, pv2.y + 74, 11, C_GOLD);
+    ui_.text("备弹 9mm " + std::to_string(profile_.ammo[0]) + " · 12G " + std::to_string(profile_.ammo[1]) +
+             " · 5.56 " + std::to_string(profile_.ammo[2]) + " · 7.62 " + std::to_string(profile_.ammo[3]),
+             pv2.x + 12, pv2.y + 96, 10, C_MUTED);
+
+    if (ui_.button({848, 714, 168, 40}, "返回", true, false, 14)) {
+        loadoutConfigured_ = true;
+        setScreen(Screen::DEPLOY);
         saveGame(true);
+        return;
     }
-    if (ui_.button({928, 654, 180, 44}, "完成并保存", true, true, 15)) {
-        loadoutOpen_ = false;
+    if (ui_.button({1024, 714, 168, 40}, "完成并保存", true, true, 14)) {
+        loadoutConfigured_ = true;
+        setScreen(Screen::DEPLOY);
         saveGame(true);
+        notify("配装已保存", C_ACCENT);
+        return;
     }
-    ui_.text("装备死亡会丢失；未拥有装备请去黑市购买。", 360, 670, 11, C_MUTED);
 }
 
 void Game::drawStash() {
@@ -464,7 +488,7 @@ void Game::drawStash() {
         ui_.text("背包已装备", bc.x + 8, bc.y + 44, 9, C_CYAN);
         ui_.text("补给", sc.x + 8, sc.y + 7, 12, C_TEXT);
         ui_.text("弹 " + std::to_string(profile_.ammo[0]) + "/" + std::to_string(profile_.ammo[1]) +
-                 "/" + std::to_string(profile_.ammo[2]), sc.x + 8, sc.y + 28, 9, C_GOLD);
+                 "/" + std::to_string(profile_.ammo[2]) + "/" + std::to_string(profile_.ammo[3]), sc.x + 8, sc.y + 28, 9, C_GOLD);
         ui_.text("绷带 " + std::to_string(profile_.bandages) + " · 止痛针 " + std::to_string(profile_.medkits),
                  sc.x + 8, sc.y + 44, 9, C_MUTED);
     }
@@ -684,7 +708,7 @@ void Game::drawShop() {
             const ArmorDef& a = ARMORS[i];
             int col = (i - 1) % 2, row = (i - 1) / 2;
             Rect r{48.f + col * 388.f, 142.f + row * 164.f, 376.f, 150.f};
-            bool equipped = profile_.armor == (ArmorId)i;
+            bool equipped = profile_.armorSlots[armorSlot((ArmorId)i)] == (ArmorId)i;
             bool owned = profile_.ownsArmor((ArmorId)i);
             ui_.panel(r, Col(13, 19, 12, 232), equipped ? C_ACCENT2 : (owned ? C_CYAN : C_BORDER), 8);
             ui_.fillF(r.x, r.y, 4, r.h, a.accent);
@@ -988,7 +1012,7 @@ void Game::buyArmor(ArmorId a) {
         profile_.coins -= def.price;
         profile_.armorOwned[(int)a] = true;
     }
-    profile_.armor = a;
+    profile_.equip(a);
     audio_.play(SFX_BUY, .85f, .96f);
     notify(alreadyOwned ? "已装备 " + std::string(def.name)
                         : "已购买并装备 " + std::string(def.name), C_CYAN);

@@ -45,6 +45,7 @@ int ammoItemType(int id) {
     if (id == IT_AMMO9) return AMMO_9MM;
     if (id == IT_AMMO12G) return AMMO_12G;
     if (id == IT_AMMO556) return AMMO_556;
+    if (id == IT_AMMO762) return AMMO_762;
     return -1;
 }
 void stackAdd(std::vector<ItemStack>& v, int id, int n) {
@@ -98,8 +99,12 @@ bool Raid::start(int mapIndex, u64 seed, const Profile& profile) {
 
     weapon_ = profile.weapon;
     if (weapon_ <= WPN_NONE || weapon_ >= WPN_COUNT) weapon_ = WPN_PISTOL;
-    armor_ = profile.armor;
+    helmet_ = (int)profile.armorSlots[ASL_HELMET];
+    armor_ = (int)profile.armorSlots[ASL_BODY];
+    rig_ = (int)profile.armorSlots[ASL_RIG];
+    if (helmet_ < 0 || helmet_ >= ARM_COUNT) helmet_ = ARM_NONE;
     if (armor_ < 0 || armor_ >= ARM_COUNT) armor_ = ARM_NONE;
+    if (rig_ < 0 || rig_ >= ARM_COUNT) rig_ = ARM_NONE;
     backpack_ = std::clamp(profile.backpack, 0, 3);
     for (int i = 0; i < AMMO_COUNT; ++i) ammo_[i] = std::max(0, profile.ammo[i]);
     bandages_ = std::max(0, profile.bandages);
@@ -116,7 +121,7 @@ bool Raid::start(int mapIndex, u64 seed, const Profile& profile) {
     player_.pos = map_.spawn;
     player_.maxHp = 100;
     player_.hp = 100;
-    player_.armorMax = (float)ARMORS[armor_].armor;
+    player_.armorMax = (float)(ARMORS[armor_].armor + ARMORS[helmet_].armor + ARMORS[rig_].armor);
     player_.armorHp = player_.armorMax;
     player_.angle = 0;
     player_.lightOn = true;
@@ -260,8 +265,8 @@ std::vector<ItemStack> Raid::rollLoot(int kind, Rng& rng) {
     auto add = [&](int id, int n) { stackAdd(out, id, n); };
     auto randomAmmo = [&]() {
         float r = rng.f01();
-        if (mapIndex_ == 2) return r < .58f ? IT_AMMO556 : (r < .82f ? IT_AMMO9 : IT_AMMO12G);
-        return r < .62f ? IT_AMMO9 : (r < .86f ? IT_AMMO12G : IT_AMMO556);
+        if (mapIndex_ == 2) return r < .52f ? IT_AMMO556 : (r < .70f ? IT_AMMO762 : (r < .86f ? IT_AMMO9 : IT_AMMO12G));
+        return r < .56f ? IT_AMMO9 : (r < .78f ? IT_AMMO12G : (r < .94f ? IT_AMMO556 : IT_AMMO762));
     };
     if (kind == 0) {
         int entries = rng.range(2, 4);
@@ -415,11 +420,13 @@ void Raid::updatePlayer(float dt, Input& in, Audio& audio) {
         player_.stamina = std::min(100.f, player_.stamina + 19.f * dt);
     }
 
-    float speed = 196.f;
-    if (sprinting) speed = 302.f;
+    float gearMul = ARMORS[armor_].speedMul * ARMORS[helmet_].speedMul * ARMORS[rig_].speedMul;
+    gearMul = std::clamp(gearMul, .62f, 1.1f);
+    float speed = 196.f * gearMul;
+    if (sprinting) speed = 302.f * gearMul;
     if (player_.reloading) speed *= .78f;
     if (player_.healT > 0) speed *= .64f;
-    float cap = BACKPACKS[backpack_].capacity;
+    float cap = BACKPACKS[backpack_].capacity + ARMORS[rig_].slots;
     if (lootWeight_ > cap * .88f) speed *= .9f;
 
     Vec2 old = player_.pos;
@@ -740,7 +747,8 @@ void Raid::damagePlayer(float dmg, Vec2 from, Audio& audio) {
     if (playerDead_ || dmg <= 0) return;
     float raw = dmg;
     if (player_.armorHp > 0) {
-        float reduction = ARMORS[armor_].reduction;
+        float reduction = ARMORS[armor_].reduction + ARMORS[helmet_].reduction + ARMORS[rig_].reduction;
+        reduction = std::min(reduction, .88f);
         dmg *= (1.f - reduction);
         player_.armorHp = std::max(0.f, player_.armorHp - raw * .78f);
         if (player_.armorHp <= 0) {
@@ -1100,7 +1108,7 @@ void Raid::lootBox(size_t idx, Audio& audio) {
     bool first = !b.searched;
     b.searched = true;
     if (first) ++searched_;
-    float cap = BACKPACKS[backpack_].capacity;
+    float cap = BACKPACKS[backpack_].capacity + ARMORS[rig_].slots;
     std::string got;
     auto appendGot = [&](const std::string& s) {
         if (!got.empty()) got += "、";
